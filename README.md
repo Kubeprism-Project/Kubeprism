@@ -2,6 +2,8 @@
 
 A real-time 3D Kubernetes cluster visualization dashboard built with React Three Fiber.
 
+![Kubeprism demo](frontend/public/kubeprism-demo.gif)
+
 ## Screenshots
 
 | Root scene | Cluster view |
