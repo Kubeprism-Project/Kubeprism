@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Kubeconfigs (sensitive — never commit)
+backend/kubeconfigs/*.yaml
+backend/kubeconfigs/*.yml
+backend/kubeconfigs/*.conf
+backend/kubeconfigs/*.json
+
+# Logs
+*.log
+/tmp/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
