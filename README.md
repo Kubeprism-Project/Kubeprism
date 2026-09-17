@@ -2,6 +2,20 @@
 
 A real-time 3D Kubernetes cluster visualization dashboard built with React Three Fiber.
 
+## Screenshots
+
+| Root scene | Cluster view |
+|---|---|
+| ![Root scene](frontend/public/screenshots/01-root-scene.jpg) | ![Cluster view](frontend/public/screenshots/02-cluster-scene.jpg) |
+
+| Namespaces view | Deployments view |
+|---|---|
+| ![Namespaces](frontend/public/screenshots/03-namespaces-scene.jpg) | ![Deployments](frontend/public/screenshots/04-deployment-scene.jpg) |
+
+| Pod view | Live log viewer |
+|---|---|
+| ![Pods](frontend/public/screenshots/05-pods-scene.jpg) | ![Log viewer](frontend/public/screenshots/06-log-viewer.jpg) |
+
 ## Features
 
 - **3D visualization** — Nodes, Namespaces, Deployments and Pods rendered as interactive rotating cubes

@@ -46,7 +46,7 @@ export default function App() {
       <div style={{ position: 'absolute', inset: 0, opacity, transition: 'opacity 0.22s ease' }}>
         <Canvas
           camera={{ position: cam.position, fov: 52, near: 0.1, far: 1000 }}
-          gl={{ antialias: true, alpha: false }}
+          gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
           dpr={[1, 2]}
         >
           <color attach="background" args={['#00000f']} />

@@ -24,6 +24,8 @@ app.get('/api/cluster', async (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+
+
 // --- Cluster management ---
 app.get('/api/clusters', (req, res) => {
   res.json({ clusters: listClusters(), active: getActiveCluster() });

@@ -3,13 +3,14 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
+import { getDemoData, getDemoLogs } from './demo.js';
 
 // Persist kubeconfigs next to this file
 const CONFIGS_DIR = path.resolve('./kubeconfigs');
 if (!fs.existsSync(CONFIGS_DIR)) fs.mkdirSync(CONFIGS_DIR, { recursive: true });
 
 // --- Dynamic clients ---
-let activeClusterName = 'default';
+let activeClusterName = 'demo'; // demo cluster is the default
 let kc            = new k8s.KubeConfig();
 let coreV1Api     = null;
 let appsV1Api     = null;
@@ -36,14 +37,15 @@ function initClients(kubeConfig, skipTLS = false) {
   logHelper = new k8s.Log(kc);
 }
 
-// Boot with default kubeconfig
+// Boot: try to load real kubeconfig, fall back to demo cluster
 try {
   const boot = new k8s.KubeConfig();
   boot.loadFromDefault();
   initClients(boot);
+  activeClusterName = 'default';
   console.log('[K8S] Loaded default kubeconfig');
 } catch (err) {
-  console.warn('[K8S] No default kubeconfig:', err.message);
+  console.warn('[K8S] No default kubeconfig, starting in demo mode:', err.message);
 }
 
 // --- Cluster management ---
@@ -54,7 +56,7 @@ export function listClusters() {
         .filter(f => f.endsWith('.yaml'))
         .map(f => f.replace('.yaml', ''))
     : [];
-  return ['default', ...saved];
+  return ['demo', 'default', ...saved];
 }
 
 export function getActiveCluster() {
@@ -62,7 +64,7 @@ export function getActiveCluster() {
 }
 
 export function addCluster(name, yamlContent, skipTLS = false) {
-  if (name === 'default') throw new Error('Cannot overwrite default cluster');
+  if (name === 'demo' || name === 'default') throw new Error(`Cannot overwrite built-in cluster "${name}"`);
   let content = yamlContent;
   if (skipTLS) {
     try {
@@ -83,7 +85,7 @@ export function addCluster(name, yamlContent, skipTLS = false) {
 }
 
 export function removeCluster(name) {
-  if (name === 'default') throw new Error('Cannot remove default cluster');
+  if (name === 'demo' || name === 'default') throw new Error(`Cannot remove built-in cluster "${name}"`);
   const file = path.join(CONFIGS_DIR, `${name}.yaml`);
   if (fs.existsSync(file)) fs.unlinkSync(file);
   if (activeClusterName === name) {
@@ -95,6 +97,12 @@ export function removeCluster(name) {
 }
 
 export function activateCluster(name) {
+  if (name === 'demo') {
+    activeClusterName = 'demo';
+    console.log('[K8S] Activating demo cluster');
+    return;
+  }
+
   const newKc = new k8s.KubeConfig();
   let skipTLS = false;
 
@@ -257,6 +265,8 @@ function formatDeployment(dep) {
 }
 
 export async function getClusterData() {
+  if (activeClusterName === 'demo') return getDemoData();
+
   const [nodes, namespaces, pods, deployments, metrics] = await Promise.all([
     coreV1Api.listNode(),
     coreV1Api.listNamespace(),
@@ -286,6 +296,7 @@ export async function getClusterData() {
 }
 
 export async function getLogs(namespace, podName, container, tailLines = 200) {
+  if (activeClusterName === 'demo') return getDemoLogs(podName);
   const result = await coreV1Api.readNamespacedPodLog(
     podName, namespace, container || undefined,
     undefined, undefined, undefined, undefined, undefined, undefined,
@@ -295,6 +306,16 @@ export async function getLogs(namespace, podName, container, tailLines = 200) {
 }
 
 export async function streamLogs(namespace, podName, container, sink) {
+  if (activeClusterName === 'demo') {
+    // Stream a few demo log lines then keep alive
+    const lines = getDemoLogs(podName).split('\n');
+    for (const line of lines) sink.write(line + '\n');
+    const interval = setInterval(() => {
+      const now = new Date().toISOString();
+      sink.write(`${now} INFO [${podName}] Heartbeat OK\n`);
+    }, 3000);
+    return () => clearInterval(interval);
+  }
   const req = await logHelper.log(namespace, podName, container || undefined, sink, {
     follow: true, tailLines: 100, pretty: false, timestamps: true,
   });
