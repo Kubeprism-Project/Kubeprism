@@ -1,4 +1,4 @@
-# K8S Dashboard
+# Kubeprism
 
 A real-time 3D Kubernetes cluster visualization dashboard built with React Three Fiber.
 
@@ -40,7 +40,7 @@ npm start          # production
 npm run dev        # watch mode
 ```
 
-The backend listens on `http://localhost:3001`.
+The Kubeprism backend listens on `http://localhost:3001`.
 
 It loads the default kubeconfig from `~/.kube/config` on startup.
 
@@ -66,7 +66,7 @@ To add a cluster:
 ## Project Structure
 
 ```
-k8s-dashboard/
+kubeprism/
 ├── backend/
 │   ├── src/
 │   │   ├── server.js       # Express + WebSocket server

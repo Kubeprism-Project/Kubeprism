@@ -183,7 +183,7 @@ export default function HUD() {
           {/* Logo */}
           <div style={css.logo}>
             <div style={css.logoDot} />
-            <span style={css.logoText}>K8S Dashboard</span>
+            <span style={css.logoText}>Kubeprism</span>
           </div>
 
           {/* Status */}

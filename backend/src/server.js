@@ -152,5 +152,5 @@ setInterval(async () => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`K8S Dashboard backend → http://localhost:${PORT}`);
+  console.log(`Kubeprism backend → http://localhost:${PORT}`);
 });

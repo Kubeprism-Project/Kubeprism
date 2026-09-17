@@ -47,10 +47,10 @@ export default function AboutModal({ onClose }) {
 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', letterSpacing: 3, textTransform: 'uppercase' }}>
-              K8S Dashboard
+              Kubeprism
             </div>
             <div style={{ fontSize: 12, color: '#3a5060', marginTop: 6, letterSpacing: 1 }}>
-              Kubernetes 3D Visualization
+              Kubernetes 3D Dashboard
             </div>
           </div>
 

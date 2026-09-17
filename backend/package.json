@@ -1,5 +1,5 @@
 {
-  "name": "k8s-dashboard-backend",
+  "name": "kubeprism-backend",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
