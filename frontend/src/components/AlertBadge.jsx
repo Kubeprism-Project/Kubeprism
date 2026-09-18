@@ -14,18 +14,22 @@ export default function AlertBadge({ count, cubeHalf }) {
 
   if (!count) return null;
 
-  const x = cubeHalf + 0.08;
-  const y = cubeHalf + 0.08;
+  // Position well outside the cube's bounding sphere to avoid occlusion
+  const x = cubeHalf + 0.22;
+  const y = cubeHalf + 0.22;
 
   return (
     <group position={[x, y, 0]}>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[0.11, 8, 8]} />
-        <meshStandardMaterial color="#ff3355" emissive="#ff3355" emissiveIntensity={2} />
+      <mesh ref={meshRef} renderOrder={10}>
+        <sphereGeometry args={[0.13, 8, 8]} />
+        <meshStandardMaterial
+          color="#ff3355" emissive="#ff3355" emissiveIntensity={2.5}
+          depthTest={false}
+        />
       </mesh>
       {count > 1 && (
-        <Billboard position={[0.2, 0, 0]}>
-          <Text fontSize={0.13} color="#ff3355" anchorX="left">
+        <Billboard position={[0.22, 0, 0]}>
+          <Text fontSize={0.14} color="#ff3355" anchorX="left" renderOrder={11}>
             {count}
           </Text>
         </Billboard>

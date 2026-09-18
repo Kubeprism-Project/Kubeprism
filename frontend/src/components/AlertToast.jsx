@@ -7,26 +7,27 @@ export default function AlertToast() {
   const [toasts, setToasts] = useState([]);
   const prevAlertKeysRef = useRef(null);
 
+  const dismiss = (id) => setToasts(prev => prev.filter(x => x.id !== id));
+
   useEffect(() => {
     if (!clusterData?.pods) return;
 
     const currentAlertPods = clusterData.pods.filter(isAlertPod);
     const currentKeys = new Set(currentAlertPods.map(p => `${p.namespace}/${p.name}`));
 
-    // Skip toasting on first load — existing alerts are shown via cube colors
-    if (prevAlertKeysRef.current === null) {
-      prevAlertKeysRef.current = currentKeys;
-      return;
-    }
+    const isFirstLoad = prevAlertKeysRef.current === null;
+    prevAlertKeysRef.current ??= new Set();
 
     const newAlerts = currentAlertPods.filter(
       p => !prevAlertKeysRef.current.has(`${p.namespace}/${p.name}`)
     );
     prevAlertKeysRef.current = currentKeys;
 
-    if (!newAlerts.length) return;
+    // On first load show up to 3 alerts so the demo is immediately meaningful
+    const toShow = isFirstLoad ? newAlerts.slice(0, 3) : newAlerts;
+    if (!toShow.length) return;
 
-    const newToasts = newAlerts.map(pod => ({
+    const newToasts = toShow.map(pod => ({
       id: `${pod.namespace}/${pod.name}/${Date.now()}`,
       pod,
       reason: pod.crashLoop ? 'CrashLoopBackOff' : pod.status === 'Failed' ? 'Failed' : `${pod.restarts} restarts`,
@@ -35,7 +36,7 @@ export default function AlertToast() {
     setToasts(prev => [...prev, ...newToasts].slice(-5));
 
     const timers = newToasts.map(t =>
-      setTimeout(() => setToasts(prev => prev.filter(x => x.id !== t.id)), 6000)
+      setTimeout(() => dismiss(t.id), 6000)
     );
     return () => timers.forEach(clearTimeout);
   }, [clusterData]);
@@ -60,16 +61,17 @@ export default function AlertToast() {
           <div key={t.id} style={{
             background: 'rgba(255,30,60,0.1)',
             border: '1px solid rgba(255,51,85,0.45)',
-            borderRadius: 8, padding: '8px 14px',
+            borderRadius: 8, padding: '8px 12px 8px 14px',
             backdropFilter: 'blur(10px)',
             animation: 'toastIn 0.25s ease',
             display: 'flex', alignItems: 'center', gap: 10,
+            pointerEvents: 'all',
           }}>
             <div style={{
               width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
               background: '#ff3355', boxShadow: '0 0 8px #ff3355',
             }} />
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11, color: '#ff6680', letterSpacing: 0.5 }}>
                 {t.reason}
               </div>
@@ -77,6 +79,16 @@ export default function AlertToast() {
                 {t.pod.namespace} / {t.pod.name.length > 30 ? '…' + t.pod.name.slice(-28) : t.pod.name}
               </div>
             </div>
+            <button
+              onClick={() => dismiss(t.id)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#3a4858', fontSize: 14, lineHeight: 1,
+                padding: '0 2px', flexShrink: 0,
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ff6680'}
+              onMouseLeave={e => e.currentTarget.style.color = '#3a4858'}
+            >✕</button>
           </div>
         ))}
       </div>
