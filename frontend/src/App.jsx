@@ -14,6 +14,7 @@ import HUD from './components/HUD';
 import LogModal from './components/LogModal';
 import Sidebar from './components/Sidebar';
 import AlertToast from './components/AlertToast';
+import SearchModal from './components/SearchModal';
 
 // Camera presets per level
 const CAMERA = {
@@ -94,6 +95,7 @@ export default function App() {
       <HUD />
       <LogModal />
       <AlertToast />
+      <SearchModal />
     </div>
   );
 }
