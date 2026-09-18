@@ -63,7 +63,7 @@ function DepCube({ deployment, pods, index, total, onClick }) {
         </Text>
       </Billboard>
       <Billboard position={[0, 0.78, 0]}>
-        <Text fontSize={0.14} color={color} anchorX="center">
+        <Text fontSize={0.14} color={fillColor} anchorX="center">
           {deployment.readyReplicas}/{deployment.replicas} · {deployment.health}
         </Text>
       </Billboard>
