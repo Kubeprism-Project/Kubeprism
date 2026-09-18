@@ -1,47 +1,47 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { isAlertPod } from '../utils/alerts';
 
-export default function AlertToast() {
-  const clusterData = useStore(s => s.clusterData);
-  const [toasts, setToasts] = useState([]);
-  const prevAlertKeysRef = useRef(null);
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
 
-  const dismiss = (id) => setToasts(prev => prev.filter(x => x.id !== id));
+export default function AlertToast() {
+  const clusterData  = useStore(s => s.clusterData);
+  const activeAlerts = useStore(s => s.activeAlerts);
+  const addAlert     = useStore(s => s.addAlert);
+  const dismissAlert = useStore(s => s.dismissAlert);
 
   useEffect(() => {
     if (!clusterData?.pods) return;
 
-    const currentAlertPods = clusterData.pods.filter(isAlertPod);
-    const currentKeys = new Set(currentAlertPods.map(p => `${p.namespace}/${p.name}`));
+    const alertingPods = clusterData.pods.filter(isAlertPod);
+    const alertingKeys = new Set(alertingPods.map(p => `${p.namespace}/${p.name}`));
+    const current      = useStore.getState().activeAlerts;
 
-    const isFirstLoad = prevAlertKeysRef.current === null;
-    prevAlertKeysRef.current ??= new Set();
+    // Add newly alerting pods
+    for (const pod of alertingPods) {
+      const key = `${pod.namespace}/${pod.name}`;
+      if (!current[key]) {
+        addAlert(key, {
+          pod,
+          reason: pod.crashLoop ? 'CrashLoopBackOff'
+                : pod.status === 'Failed' ? 'Failed'
+                : `${pod.restarts} restarts`,
+        });
+      }
+    }
 
-    const newAlerts = currentAlertPods.filter(
-      p => !prevAlertKeysRef.current.has(`${p.namespace}/${p.name}`)
-    );
-    prevAlertKeysRef.current = currentKeys;
-
-    // On first load show up to 3 alerts so the demo is immediately meaningful
-    const toShow = isFirstLoad ? newAlerts.slice(0, 3) : newAlerts;
-    if (!toShow.length) return;
-
-    const newToasts = toShow.map(pod => ({
-      id: `${pod.namespace}/${pod.name}/${Date.now()}`,
-      pod,
-      reason: pod.crashLoop ? 'CrashLoopBackOff' : pod.status === 'Failed' ? 'Failed' : `${pod.restarts} restarts`,
-    }));
-
-    setToasts(prev => [...prev, ...newToasts].slice(-5));
-
-    const timers = newToasts.map(t =>
-      setTimeout(() => dismiss(t.id), 6000)
-    );
-    return () => timers.forEach(clearTimeout);
+    // Auto-recover: dismiss alerts for pods that are no longer alerting
+    for (const key of Object.keys(current)) {
+      if (!alertingKeys.has(key)) {
+        dismissAlert(key);
+      }
+    }
   }, [clusterData]);
 
-  if (!toasts.length) return null;
+  const entries = Object.entries(activeAlerts);
+  if (!entries.length) return null;
 
   return (
     <>
@@ -57,8 +57,8 @@ export default function AlertToast() {
         pointerEvents: 'none',
         fontFamily: "'SF Mono','Fira Code',monospace",
       }}>
-        {toasts.map(t => (
-          <div key={t.id} style={{
+        {entries.slice(-5).map(([key, { pod, reason, raisedAt }]) => (
+          <div key={key} style={{
             background: 'rgba(255,30,60,0.1)',
             border: '1px solid rgba(255,51,85,0.45)',
             borderRadius: 8, padding: '8px 12px 8px 14px',
@@ -72,19 +72,23 @@ export default function AlertToast() {
               background: '#ff3355', boxShadow: '0 0 8px #ff3355',
             }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: '#ff6680', letterSpacing: 0.5 }}>
-                {t.reason}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 11, color: '#ff6680', letterSpacing: 0.5 }}>
+                  {reason}
+                </span>
+                <span style={{ fontSize: 9, color: '#3a4858' }}>
+                  {formatTime(raisedAt)}
+                </span>
               </div>
               <div style={{ fontSize: 10, color: '#445566', marginTop: 2 }}>
-                {t.pod.namespace} / {t.pod.name.length > 30 ? '…' + t.pod.name.slice(-28) : t.pod.name}
+                {pod.namespace} / {pod.name.length > 30 ? '…' + pod.name.slice(-28) : pod.name}
               </div>
             </div>
             <button
-              onClick={() => dismiss(t.id)}
+              onClick={() => dismissAlert(key)}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: '#3a4858', fontSize: 14, lineHeight: 1,
-                padding: '0 2px', flexShrink: 0,
+                color: '#3a4858', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0,
               }}
               onMouseEnter={e => e.currentTarget.style.color = '#ff6680'}
               onMouseLeave={e => e.currentTarget.style.color = '#3a4858'}

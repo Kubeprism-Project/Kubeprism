@@ -16,12 +16,24 @@ export const useStore = create((set, get) => {
     selectedPod:        null,
 
     // Data
-    clusterData: null,
-    connected:   false,
-    error:       null,
+    clusterData:  null,
+    connected:    false,
+    error:        null,
+
+    // Active alerts — { [namespace/name]: { pod, reason, raisedAt } }
+    // Badge stays visible until alert is dismissed (manually by user or auto when pod recovers)
+    activeAlerts: {},
+    addAlert:     (key, data) => set(state =>
+      state.activeAlerts[key] ? {} : { activeAlerts: { ...state.activeAlerts, [key]: { ...data, raisedAt: Date.now() } } }
+    ),
+    dismissAlert: (key) => set(state => {
+      const next = { ...state.activeAlerts };
+      delete next[key];
+      return { activeAlerts: next };
+    }),
 
     setClusterData: (data) => set({ clusterData: data, error: null }),
-    resetToRoot: () => set({ level: 'root', selectedNode: null, selectedNamespace: null, selectedDeployment: null, selectedPod: null, clusterData: null }),
+    resetToRoot: () => set({ level: 'root', selectedNode: null, selectedNamespace: null, selectedDeployment: null, selectedPod: null, clusterData: null, activeAlerts: {} }),
     setConnected:   (c)    => set({ connected: c }),
     setError:       (e)    => set({ error: e }),
 
