@@ -4,6 +4,8 @@ import { Text, Billboard } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
 import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
+import AlertBadge from './AlertBadge';
+import { isAlertPod } from '../utils/alerts';
 
 export const POD_COLOR = {
   Running:   '#7ed4a8',
@@ -81,6 +83,8 @@ export default function PodCube({ pod, position, index, showNamespace = false })
           hovered={hovered}
         />
       </animated.group>
+
+      <AlertBadge count={isAlertPod(pod) ? 1 : 0} cubeHalf={POD_SIZE / 2} />
 
       <Billboard position={[0, LABEL_Y, 0]}>
         <Text fontSize={0.2} color="#b8c8d8" anchorX="center" maxWidth={3.5}>

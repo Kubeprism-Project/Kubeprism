@@ -4,7 +4,9 @@ import { Text, Billboard } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
 import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
+import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge } from '../utils/podColors';
+import { alertCount } from '../utils/alerts';
 
 
 function NSCube({ ns, pods, deployments, index, total, onClick }) {
@@ -27,6 +29,7 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
   const hasIssue    = nsDeployments.some(d => d.health === 'Critical');
   const fillColor = worstMemFill(nsPods) || (hasIssue ? '#d47e7e' : !allHealthy ? '#d4c07e' : '#7ed4a8');
   const edgeColor = worstStatusEdge(nsPods);
+  const alerts    = alertCount(nsPods);
 
   const { scale } = useSpring({
     scale: hovered ? 1.18 : 1,
@@ -60,6 +63,8 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
           hovered={hovered}
         />
       </animated.group>
+
+      <AlertBadge count={alerts} cubeHalf={0.45} />
 
       <Billboard position={[0, 1.05, 0]}>
         <Text fontSize={0.2} color="#b8c8d8" anchorX="center">

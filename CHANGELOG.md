@@ -1,5 +1,25 @@
 # Kubeprism — Changelog
 
+## [0.0.2] - 2026-09-18
+
+### Added
+
+#### Alert Notifications
+- **Alert badges** — red pulsing sphere on any cube (Pod / Deployment / Namespace / Node / Root) that has at least one pod in alert state
+- **Alert count** displayed on the badge when more than one pod is in alert
+- **Toast notifications** — slide-in toasts (bottom-left) triggered when a pod newly enters alert state (Failed, CrashLoopBackOff, or ≥ 5 restarts)
+- Toasts auto-dismiss after 6 seconds and stack up to 5 visible at once
+- Health propagation now surfaces through the full hierarchy: Pod → Deployment → Namespace → Node → Root view
+- `CrashLoopBackOff` detection via container waiting reason in backend
+- Demo cluster includes `data-sync` (CrashLoop) and `loki` (7 restarts) to demonstrate alerts
+
+#### Technical
+- `utils/alerts.js` — shared `isAlertPod()` and `alertCount()` helpers
+- `AlertBadge` 3D component — reusable pulsing sphere, position driven by `cubeHalf` prop
+- `AlertToast` component — tracks previous alert state, only toasts on *new* failures
+
+---
+
 ## [0.0.1] - 2026-09-17
 
 ### Added

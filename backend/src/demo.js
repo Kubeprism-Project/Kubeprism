@@ -8,7 +8,7 @@ const DEPLOYMENTS = [
   { name: 'worker',           ns: 'production', replicas: 5, memPct: 78 },
   { name: 'scheduler',        ns: 'production', replicas: 1, memPct: 30 },
   { name: 'notifier',         ns: 'production', replicas: 2, memPct: 55 },
-  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 88 },
+  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 88, crashLoop: true },
   // staging
   { name: 'api-gateway',      ns: 'staging',    replicas: 1, memPct: 20 },
   { name: 'auth-service',     ns: 'staging',    replicas: 1, memPct: 15 },
@@ -26,7 +26,7 @@ const DEPLOYMENTS = [
   { name: 'ingress-nginx',    ns: 'ingress',    replicas: 2, memPct: 42 },
   { name: 'cert-manager',     ns: 'ingress',    replicas: 1, memPct: 16 },
   // logging
-  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 82 },
+  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 82, restarts: 7 },
   { name: 'promtail',         ns: 'logging',    replicas: 2, memPct: 33 },
 ];
 
@@ -87,14 +87,17 @@ export function getDemoData() {
       const memPct = fluctuate(dep.memPct);
       const memLimitMi = 512;
       const memUsedMi = Math.round(memLimitMi * memPct / 100);
-      const status = podStatus(memPct);
+      const crashLoop = dep.crashLoop || false;
+      const restarts  = dep.restarts || (crashLoop ? 12 : 0);
+      const status    = crashLoop ? 'Running' : podStatus(memPct);
       pods.push({
         name: `${dep.name}-${suffix}`,
         namespace: dep.ns,
         nodeName: nodeNames[nodeIdx % nodeNames.length],
         status,
-        ready: status === 'Running',
-        restarts: 0,
+        ready: status === 'Running' && !crashLoop,
+        restarts,
+        crashLoop,
         containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
         createdAt: now,
         labels: { app: dep.name, env: dep.ns },

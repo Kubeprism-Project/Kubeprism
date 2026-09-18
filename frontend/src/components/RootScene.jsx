@@ -4,7 +4,9 @@ import { Text, Billboard } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
 import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
+import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge } from '../utils/podColors';
+import { alertCount } from '../utils/alerts';
 
 // cube size 1.5 → half = 0.75
 const LABEL_Y = 0.75 + 0.65; // 1.4
@@ -15,7 +17,7 @@ const MODES = [
   { id: 'namespaces', label: 'NAMESPACES', subtitle: 'Namespaces → Deployments → Pods',  defaultColor: '#9e7ed4', pos: [3.5,  0, 0] },
 ];
 
-function ModeCube({ mode, fillColor, edgeColor, index }) {
+function ModeCube({ mode, fillColor, edgeColor, alerts, index }) {
   const cubeRef  = useRef();
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
@@ -56,6 +58,8 @@ function ModeCube({ mode, fillColor, edgeColor, index }) {
         />
       </animated.group>
 
+      <AlertBadge count={alerts} cubeHalf={0.75} />
+
       <Billboard position={[0, LABEL_Y, 0]}>
         <Text fontSize={0.22} color="#b8c8d8" anchorX="center" letterSpacing={0.05}>
           {mode.label}
@@ -76,6 +80,7 @@ export default function RootScene() {
   const clusterName = clusterData?.clusterName || '';
   const fillColor   = worstMemFill(pods);
   const edgeColor   = worstStatusEdge(pods);
+  const alerts      = alertCount(pods);
 
   return (
     <group>
@@ -86,7 +91,7 @@ export default function RootScene() {
       </Billboard>
 
       {MODES.map((mode, i) => (
-        <ModeCube key={mode.id} mode={mode} fillColor={fillColor} edgeColor={edgeColor} index={i} />
+        <ModeCube key={mode.id} mode={mode} fillColor={fillColor} edgeColor={edgeColor} alerts={alerts} index={i} />
       ))}
     </group>
   );

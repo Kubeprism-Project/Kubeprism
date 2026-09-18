@@ -212,6 +212,7 @@ function formatPod(pod) {
   const containerStatuses = pod.status?.containerStatuses || [];
   const allReady  = containerStatuses.every(c => c.ready);
   const restarts  = containerStatuses.reduce((sum, c) => sum + (c.restartCount || 0), 0);
+  const crashLoop = containerStatuses.some(c => c.state?.waiting?.reason === 'CrashLoopBackOff');
 
   const containers = pod.spec?.containers || [];
   let cpuLimitNano = 0, memLimitBytes = 0;
@@ -236,6 +237,7 @@ function formatPod(pod) {
     labels:     pod.metadata.labels || {},
     ownerKind:  pod.metadata.ownerReferences?.[0]?.kind,
     ownerName:  pod.metadata.ownerReferences?.[0]?.name,
+    crashLoop,
     cpuLimit:     hasLimits   && cpuLimitNano  > 0 ? formatCpuUsage(cpuLimitNano)  : null,
     memLimit:     hasLimits   && memLimitBytes > 0 ? formatMemUsage(memLimitBytes) : null,
     memLimitBytes: memLimitBytes > 0 ? memLimitBytes : null,
