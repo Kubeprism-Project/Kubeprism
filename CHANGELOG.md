@@ -5,18 +5,29 @@
 ### Added
 
 #### Alert Notifications
-- **Alert badges** — red pulsing sphere on any cube (Pod / Deployment / Namespace / Node / Root) that has at least one pod in alert state
-- **Alert count** displayed on the badge when more than one pod is in alert
-- **Toast notifications** — slide-in toasts (bottom-left) triggered when a pod newly enters alert state (Failed, CrashLoopBackOff, or ≥ 5 restarts)
-- Toasts auto-dismiss after 6 seconds and stack up to 5 visible at once
-- Health propagation now surfaces through the full hierarchy: Pod → Deployment → Namespace → Node → Root view
-- `CrashLoopBackOff` detection via container waiting reason in backend
-- Demo cluster includes `data-sync` (CrashLoop) and `loki` (7 restarts) to demonstrate alerts
+- **Alert badges (3D)** — red pulsing sphere on any cube that has at least one alerting pod, with counter when more than one
+- Full propagation across all 5 navigation levels: Pod → Deployment → Namespace → Node → Root view
+- **Toast notifications** — slide-in toasts (bottom-left) on newly alerting pods, stacked up to 5
+- Toasts display the exact time the alert was raised (HH:MM:SS)
+- Badge and toast share the same `activeAlerts` Zustand state — badge persists until the alert is dismissed, not just until the pod state changes
+- Two dismiss modes:
+  - **Manual**: user clicks ✕ → toast and badge disappear immediately
+  - **Auto-recovery**: pod returns to healthy state → alert auto-dismissed across the whole hierarchy
+- Alert criteria: `status === 'Failed'`, `crashLoop === true` (CrashLoopBackOff via container waiting reason), or `restarts >= 5`
+
+#### Demo Scenario
+- 3-minute cycle (resets on page reload) covering 10 incident scenarios across all namespaces:
+  - 0–60s: all pods green
+  - 60–90s: one pod turns orange, another turns red (degraded, no alert yet)
+  - 90–150s: red pod escalates to Failed/CrashLoop → toast raised, badges propagated up
+  - 150–180s: pod recovers → auto-dismiss, everything returns to green
+- Incident types: OOMKilled, CrashLoopBackOff, restart storm, multi-pod failure, kube-system infra, ingress impact
 
 #### Technical
-- `utils/alerts.js` — shared `isAlertPod()` and `alertCount()` helpers
-- `AlertBadge` 3D component — reusable pulsing sphere, position driven by `cubeHalf` prop
-- `AlertToast` component — tracks previous alert state, only toasts on *new* failures
+- `utils/alerts.js` — `isAlertPod()` and `activeAlertCount(pods, activeAlerts)` helpers
+- `AlertBadge` — 3D reusable component with `depthTest: false` to always render above rotating cubes
+- `AlertToast` — drives `activeAlerts` store, manages recovery detection on each cluster data update
+- Demo phase calculated relative to WebSocket `connectedAt` timestamp — reload always starts in calm phase
 
 ---
 
