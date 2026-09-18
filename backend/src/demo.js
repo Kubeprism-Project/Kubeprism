@@ -85,8 +85,8 @@ function podStatus(memPct) {
 
 export function getDemoData() {
   const now           = new Date().toISOString();
-  const WAVE_MS       = 2 * 60 * 1000; // 2 minutes between incidents
-  const ACTIVE_MS     = 30 * 1000;     // incident visible for 30 seconds then auto-recovers
+  const WAVE_MS       = 2 * 60 * 1000; // new incident every 2 minutes
+  const ACTIVE_MS     = 90 * 1000;     // incident active for 90s, then 30s of calm before next wave
   const waveIdx       = Math.floor(Date.now() / WAVE_MS);
   const wavePhaseMs   = Date.now() % WAVE_MS;
   const incidentActive = wavePhaseMs < ACTIVE_MS;
@@ -162,7 +162,8 @@ export function getDemoData() {
     });
     for (let i = 0; i < dep.replicas; i++) {
       const suffix    = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
-      const memPct    = fluctuate(dep.memPct);
+      // For OOM incidents, keep memPct firmly above the 90% threshold
+      const memPct    = dep.crashLoop || dep.restarts ? fluctuate(dep.memPct) : Math.max(93, fluctuate(dep.memPct));
       const memLimitMi = 512;
       const crashLoop = dep.crashLoop || false;
       const restarts  = dep.restarts  || (crashLoop ? 14 : 0);
