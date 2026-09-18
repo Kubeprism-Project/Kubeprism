@@ -4,10 +4,8 @@ import { useStore } from '../store/useStore';
 import PodCube, { buildPodGrid } from './PodCube';
 
 export default function NodeScene() {
-  const { selectedNode, clusterData } = useStore(s => ({
-    selectedNode: s.selectedNode,
-    clusterData:  s.clusterData,
-  }));
+  const selectedNode = useStore(s => s.selectedNode);
+  const clusterData  = useStore(s => s.clusterData);
 
   const pods = clusterData?.pods || [];
 

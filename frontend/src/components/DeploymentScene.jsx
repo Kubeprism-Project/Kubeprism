@@ -5,10 +5,8 @@ import PodCube, { buildPodGrid } from './PodCube';
 import { podsForDeployment } from '../utils/podColors';
 
 export default function DeploymentScene() {
-  const { selectedDeployment, clusterData } = useStore(s => ({
-    selectedDeployment: s.selectedDeployment,
-    clusterData:        s.clusterData,
-  }));
+  const selectedDeployment = useStore(s => s.selectedDeployment);
+  const clusterData        = useStore(s => s.clusterData);
 
   const allPods = clusterData?.pods || [];
   const pods = useMemo(

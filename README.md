@@ -112,6 +112,12 @@ kubeprism/
             └── AboutModal.jsx          # App info
 ```
 
+## Built with Claude
+
+This project is developed in collaboration with [Claude](https://claude.ai) (Anthropic), used as an AI pair programmer throughout the entire development process — architecture decisions, feature implementation, code reviews, and iterative improvements.
+
+This is a deliberate and fully controlled choice. Claude accelerates development without replacing engineering judgment.
+
 ## License
 
 MIT

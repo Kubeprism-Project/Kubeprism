@@ -13,10 +13,9 @@ function DepCube({ deployment, pods, index, total, onClick }) {
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
 
-  const depPods = podsForDeployment(pods, deployment);
-  const fillColor = worstMemFill(depPods)    || HEALTH_COLOR[deployment.health] || '#3a5060';
+  const depPods   = podsForDeployment(pods, deployment);
+  const fillColor = worstMemFill(depPods) || HEALTH_COLOR[deployment.health] || '#3a5060';
   const edgeColor = worstStatusEdge(depPods);
-  const color     = fillColor; // used for labels
   const cols   = Math.ceil(Math.sqrt(total));
   const spacing = 3.2;
   const col     = index % cols;
@@ -64,7 +63,7 @@ function DepCube({ deployment, pods, index, total, onClick }) {
         </Text>
       </Billboard>
       <Billboard position={[0, 0.78, 0]}>
-        <Text fontSize={0.14} color={color} anchorX="center">
+        <Text fontSize={0.14} color={fillColor} anchorX="center">
           {deployment.readyReplicas}/{deployment.replicas} · {deployment.health}
         </Text>
       </Billboard>
@@ -73,11 +72,9 @@ function DepCube({ deployment, pods, index, total, onClick }) {
 }
 
 export default function NamespaceScene() {
-  const { selectedNamespace, clusterData, navigateTo } = useStore(s => ({
-    selectedNamespace: s.selectedNamespace,
-    clusterData:       s.clusterData,
-    navigateTo:        s.navigateTo,
-  }));
+  const selectedNamespace = useStore(s => s.selectedNamespace);
+  const clusterData       = useStore(s => s.clusterData);
+  const navigateTo        = useStore(s => s.navigateTo);
 
   const nsPods = (clusterData?.pods || []).filter(
     p => p.namespace === selectedNamespace?.name

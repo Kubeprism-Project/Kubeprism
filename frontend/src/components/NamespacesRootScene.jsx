@@ -1,8 +1,7 @@
 import { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Billboard, Line } from '@react-three/drei';
+import { Text, Billboard } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
-import * as THREE from 'three';
 import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
 import { worstMemFill, worstStatusEdge } from '../utils/podColors';
@@ -26,9 +25,8 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
   const runningPods   = nsPods.filter(p => p.status === 'Running').length;
   const allHealthy  = nsDeployments.every(d => d.health === 'Healthy');
   const hasIssue    = nsDeployments.some(d => d.health === 'Critical');
-  const fillColor   = worstMemFill(nsPods)    || (hasIssue ? '#d47e7e' : !allHealthy ? '#d4c07e' : '#7ed4a8');
-  const edgeColor   = worstStatusEdge(nsPods);
-  const statusColor = fillColor; // used for labels
+  const fillColor = worstMemFill(nsPods) || (hasIssue ? '#d47e7e' : !allHealthy ? '#d4c07e' : '#7ed4a8');
+  const edgeColor = worstStatusEdge(nsPods);
 
   const { scale } = useSpring({
     scale: hovered ? 1.18 : 1,
@@ -69,7 +67,7 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
         </Text>
       </Billboard>
       <Billboard position={[0, 0.78, 0]}>
-        <Text fontSize={0.14} color={statusColor} anchorX="center">
+        <Text fontSize={0.14} color={fillColor} anchorX="center">
           {nsDeployments.length}d · {runningPods}/{nsPods.length}p
         </Text>
       </Billboard>
@@ -78,10 +76,8 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
 }
 
 export default function NamespacesRootScene() {
-  const { clusterData, navigateTo } = useStore(s => ({
-    clusterData: s.clusterData,
-    navigateTo:  s.navigateTo,
-  }));
+  const clusterData = useStore(s => s.clusterData);
+  const navigateTo  = useStore(s => s.navigateTo);
 
   const namespaces  = clusterData?.namespaces  || [];
   const pods        = clusterData?.pods        || [];

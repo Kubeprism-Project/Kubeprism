@@ -133,7 +133,16 @@ function StatCard({ label, value, sub, color }) {
 }
 
 export default function HUD() {
-  const { level, viewMode, connected, error, clusterData, selectedNode, selectedNamespace, selectedDeployment, navigateBack, navigateToLevel } = useStore();
+  const level              = useStore(s => s.level);
+  const viewMode           = useStore(s => s.viewMode);
+  const connected          = useStore(s => s.connected);
+  const error              = useStore(s => s.error);
+  const clusterData        = useStore(s => s.clusterData);
+  const selectedNode       = useStore(s => s.selectedNode);
+  const selectedNamespace  = useStore(s => s.selectedNamespace);
+  const selectedDeployment = useStore(s => s.selectedDeployment);
+  const navigateBack       = useStore(s => s.navigateBack);
+  const navigateToLevel    = useStore(s => s.navigateToLevel);
   const [time, setTime] = useState('');
   const [backHovered, setBackHovered] = useState(false);
 
