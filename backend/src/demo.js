@@ -2,33 +2,33 @@
 const NAMESPACES = ['production', 'staging', 'monitoring', 'kube-system', 'ingress', 'logging'];
 
 const DEPLOYMENTS = [
-  // production
-  { name: 'api-gateway',      ns: 'production', replicas: 3, memPct: 62 },
-  { name: 'auth-service',     ns: 'production', replicas: 2, memPct: 45 },
-  { name: 'worker',           ns: 'production', replicas: 5, memPct: 78 },
-  { name: 'scheduler',        ns: 'production', replicas: 1, memPct: 30 },
-  { name: 'notifier',         ns: 'production', replicas: 2, memPct: 55 },
-  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 58 },
-  { name: 'event-processor',  ns: 'production', replicas: 2, memPct: 71 },
+  // production — all below 45% → always green
+  { name: 'api-gateway',      ns: 'production', replicas: 3, memPct: 38 },
+  { name: 'auth-service',     ns: 'production', replicas: 2, memPct: 32 },
+  { name: 'worker',           ns: 'production', replicas: 5, memPct: 44 },
+  { name: 'scheduler',        ns: 'production', replicas: 1, memPct: 22 },
+  { name: 'notifier',         ns: 'production', replicas: 2, memPct: 28 },
+  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 35 },
+  { name: 'event-processor',  ns: 'production', replicas: 2, memPct: 41 },
   // staging
   { name: 'api-gateway',      ns: 'staging',    replicas: 1, memPct: 20 },
   { name: 'auth-service',     ns: 'staging',    replicas: 1, memPct: 15 },
-  { name: 'worker',           ns: 'staging',    replicas: 2, memPct: 40 },
+  { name: 'worker',           ns: 'staging',    replicas: 2, memPct: 30 },
   { name: 'event-handler',    ns: 'staging',    replicas: 1, memPct: 25 },
   // monitoring
-  { name: 'prometheus',       ns: 'monitoring', replicas: 1, memPct: 70 },
-  { name: 'grafana',          ns: 'monitoring', replicas: 1, memPct: 35 },
-  { name: 'alertmanager',     ns: 'monitoring', replicas: 1, memPct: 22 },
+  { name: 'prometheus',       ns: 'monitoring', replicas: 1, memPct: 40 },
+  { name: 'grafana',          ns: 'monitoring', replicas: 1, memPct: 28 },
+  { name: 'alertmanager',     ns: 'monitoring', replicas: 1, memPct: 18 },
   // kube-system
   { name: 'coredns',          ns: 'kube-system', replicas: 2, memPct: 18 },
   { name: 'metrics-server',   ns: 'kube-system', replicas: 1, memPct: 12 },
-  { name: 'cilium',           ns: 'kube-system', replicas: 2, memPct: 28 },
+  { name: 'cilium',           ns: 'kube-system', replicas: 2, memPct: 26 },
   // ingress
-  { name: 'ingress-nginx',    ns: 'ingress',    replicas: 2, memPct: 42 },
+  { name: 'ingress-nginx',    ns: 'ingress',    replicas: 2, memPct: 35 },
   { name: 'cert-manager',     ns: 'ingress',    replicas: 1, memPct: 16 },
   // logging
-  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 52 },
-  { name: 'promtail',         ns: 'logging',    replicas: 2, memPct: 33 },
+  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 38 },
+  { name: 'promtail',         ns: 'logging',    replicas: 2, memPct: 22 },
 ];
 
 const NODES = [
