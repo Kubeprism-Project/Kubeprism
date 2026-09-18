@@ -2,32 +2,33 @@
 const NAMESPACES = ['production', 'staging', 'monitoring', 'kube-system', 'ingress', 'logging'];
 
 const DEPLOYMENTS = [
-  // production
-  { name: 'api-gateway',      ns: 'production', replicas: 3, memPct: 62 },
-  { name: 'auth-service',     ns: 'production', replicas: 2, memPct: 45 },
-  { name: 'worker',           ns: 'production', replicas: 5, memPct: 78 },
-  { name: 'scheduler',        ns: 'production', replicas: 1, memPct: 30 },
-  { name: 'notifier',         ns: 'production', replicas: 2, memPct: 55 },
-  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 88 },
+  // production — all below 45% → always green
+  { name: 'api-gateway',      ns: 'production', replicas: 3, memPct: 38 },
+  { name: 'auth-service',     ns: 'production', replicas: 2, memPct: 32 },
+  { name: 'worker',           ns: 'production', replicas: 5, memPct: 44 },
+  { name: 'scheduler',        ns: 'production', replicas: 1, memPct: 22 },
+  { name: 'notifier',         ns: 'production', replicas: 2, memPct: 28 },
+  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 35 },
+  { name: 'event-processor',  ns: 'production', replicas: 2, memPct: 41 },
   // staging
   { name: 'api-gateway',      ns: 'staging',    replicas: 1, memPct: 20 },
   { name: 'auth-service',     ns: 'staging',    replicas: 1, memPct: 15 },
-  { name: 'worker',           ns: 'staging',    replicas: 2, memPct: 40 },
+  { name: 'worker',           ns: 'staging',    replicas: 2, memPct: 30 },
   { name: 'event-handler',    ns: 'staging',    replicas: 1, memPct: 25 },
   // monitoring
-  { name: 'prometheus',       ns: 'monitoring', replicas: 1, memPct: 70 },
-  { name: 'grafana',          ns: 'monitoring', replicas: 1, memPct: 35 },
-  { name: 'alertmanager',     ns: 'monitoring', replicas: 1, memPct: 22 },
+  { name: 'prometheus',       ns: 'monitoring', replicas: 1, memPct: 40 },
+  { name: 'grafana',          ns: 'monitoring', replicas: 1, memPct: 28 },
+  { name: 'alertmanager',     ns: 'monitoring', replicas: 1, memPct: 18 },
   // kube-system
   { name: 'coredns',          ns: 'kube-system', replicas: 2, memPct: 18 },
   { name: 'metrics-server',   ns: 'kube-system', replicas: 1, memPct: 12 },
-  { name: 'cilium',           ns: 'kube-system', replicas: 2, memPct: 28 },
+  { name: 'cilium',           ns: 'kube-system', replicas: 2, memPct: 26 },
   // ingress
-  { name: 'ingress-nginx',    ns: 'ingress',    replicas: 2, memPct: 42 },
+  { name: 'ingress-nginx',    ns: 'ingress',    replicas: 2, memPct: 35 },
   { name: 'cert-manager',     ns: 'ingress',    replicas: 1, memPct: 16 },
   // logging
-  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 82 },
-  { name: 'promtail',         ns: 'logging',    replicas: 2, memPct: 33 },
+  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 38 },
+  { name: 'promtail',         ns: 'logging',    replicas: 2, memPct: 22 },
 ];
 
 const NODES = [
@@ -35,6 +36,31 @@ const NODES = [
   { name: 'k8s-node-02', pods: 35 },
   { name: 'k8s-node-03', pods: 28 },
 ];
+
+// Incident pool — each entry defines a pod and its alert failure mode
+// Two pods are picked per cycle: one goes orange then stays, the other escalates to alert
+const INCIDENT_POOL = [
+  { name: 'payment-service',         ns: 'production',  replicas: 2, crashLoop: false, restarts: 0  },
+  { name: 'recommender',             ns: 'staging',     replicas: 1, crashLoop: true,  restarts: 0  },
+  { name: 'vector',                  ns: 'logging',     replicas: 1, crashLoop: false, restarts: 11 },
+  { name: 'redis-cache',             ns: 'production',  replicas: 1, crashLoop: false, restarts: 0  },
+  { name: 'kube-proxy',              ns: 'kube-system', replicas: 2, crashLoop: true,  restarts: 0  },
+  { name: 'tracing-agent',           ns: 'monitoring',  replicas: 1, crashLoop: false, restarts: 9  },
+  { name: 'load-tester',             ns: 'staging',     replicas: 3, crashLoop: false, restarts: 0  },
+  { name: 'ingress-default-backend', ns: 'ingress',     replicas: 1, crashLoop: true,  restarts: 0  },
+  { name: 'thanos-compactor',        ns: 'monitoring',  replicas: 1, crashLoop: false, restarts: 7  },
+  { name: 'batch-processor',         ns: 'production',  replicas: 4, crashLoop: false, restarts: 0  },
+];
+
+// Cycle phases (3 min total):
+//   0–60s  : calm       — all pods green
+//   60–90s : degraded   — podA orange (memPct ~65), podB red (memPct ~85), both Running
+//   90–150s: alert      — podB escalates to Failed/CrashLoop → toast raised
+//   150–180s: recovery  — both pods gone → auto-recover
+const CYCLE_MS      = 3 * 60 * 1000;
+const PHASE_CALM    = 60  * 1000;
+const PHASE_DEGRADE = 90  * 1000;
+const PHASE_ALERT   = 150 * 1000;
 
 // Stable random suffixes per deployment/pod — seeded to be consistent across calls
 const _seeds = {};
@@ -57,8 +83,23 @@ function podStatus(memPct) {
   return 'Running';
 }
 
-export function getDemoData() {
-  const now = new Date().toISOString();
+export function getDemoData(connectedAt = 0) {
+  const now      = new Date().toISOString();
+  // Phase is relative to when this client connected, so a fresh reload always starts calm
+  const elapsed  = connectedAt > 0 ? Date.now() - connectedAt : Date.now() % CYCLE_MS;
+  const phaseMs  = elapsed % CYCLE_MS;
+  const waveIdx  = Math.floor(elapsed / CYCLE_MS);
+
+  // Which phase are we in?
+  const phase = phaseMs < PHASE_CALM    ? 'calm'
+              : phaseMs < PHASE_DEGRADE ? 'degrade'
+              : phaseMs < PHASE_ALERT   ? 'alert'
+              : 'recovery';
+
+  // Two incident pods per wave (from different namespaces when possible)
+  const podA = INCIDENT_POOL[waveIdx % INCIDENT_POOL.length];
+  const podB = INCIDENT_POOL[(waveIdx + 1) % INCIDENT_POOL.length];
+
   const pods = [];
   const deployments = [];
 
@@ -87,14 +128,17 @@ export function getDemoData() {
       const memPct = fluctuate(dep.memPct);
       const memLimitMi = 512;
       const memUsedMi = Math.round(memLimitMi * memPct / 100);
-      const status = podStatus(memPct);
+      const crashLoop = dep.crashLoop || false;
+      const restarts  = dep.restarts || (crashLoop ? 12 : 0);
+      const status    = crashLoop ? 'Running' : podStatus(memPct);
       pods.push({
         name: `${dep.name}-${suffix}`,
         namespace: dep.ns,
         nodeName: nodeNames[nodeIdx % nodeNames.length],
         status,
-        ready: status === 'Running',
-        restarts: 0,
+        ready: status === 'Running' && !crashLoop,
+        restarts,
+        crashLoop,
         containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
         createdAt: now,
         labels: { app: dep.name, env: dep.ns },
@@ -112,6 +156,84 @@ export function getDemoData() {
       nodeIdx++;
     }
   }
+
+  // Helper: inject a degraded pod (orange or red, no alert)
+  function injectDegraded(dep, targetMemPct) {
+    const selector = { app: dep.name, env: dep.ns };
+    deployments.push({
+      name: dep.name, namespace: dep.ns,
+      replicas: dep.replicas, readyReplicas: dep.replicas,
+      availableReplicas: dep.replicas, updatedReplicas: dep.replicas,
+      health: 'Degraded', createdAt: now, labels: selector, selector,
+      images: [`registry.example.com/${dep.name}:latest`],
+    });
+    for (let i = 0; i < dep.replicas; i++) {
+      const suffix     = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
+      const memPct     = fluctuate(targetMemPct);
+      const memLimitMi = 512;
+      pods.push({
+        name: `${dep.name}-${suffix}`, namespace: dep.ns,
+        nodeName: nodeNames[nodeIdx % nodeNames.length],
+        status: 'Running', ready: true, restarts: 0, crashLoop: false,
+        containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
+        createdAt: now, labels: { app: dep.name, env: dep.ns },
+        ownerKind: 'ReplicaSet', ownerName: `${dep.name}-${suffix}`,
+        cpuLimit: '200m', memLimit: `${memLimitMi}Mi`,
+        memLimitBytes: memLimitMi * 1024 * 1024,
+        cpuRequest: '50m', memRequest: '128Mi',
+        cpu: `${Math.round(10 + Math.random() * 80)}m`,
+        memory: `${Math.round(memLimitMi * memPct / 100)}Mi`,
+        memPct,
+      });
+      nodeIdx++;
+    }
+  }
+
+  // Helper: inject an alerting pod (Failed / CrashLoop / high restarts)
+  function injectAlert(dep) {
+    const selector = { app: dep.name, env: dep.ns };
+    deployments.push({
+      name: dep.name, namespace: dep.ns,
+      replicas: dep.replicas, readyReplicas: 0,
+      availableReplicas: 0, updatedReplicas: dep.replicas,
+      health: 'Critical', createdAt: now, labels: selector, selector,
+      images: [`registry.example.com/${dep.name}:latest`],
+    });
+    for (let i = 0; i < dep.replicas; i++) {
+      const suffix     = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
+      const memLimitMi = 512;
+      const crashLoop  = dep.crashLoop;
+      const restarts   = dep.restarts || (crashLoop ? 14 : 0);
+      // OOM: keep memPct firmly above 90 ; CrashLoop/restarts: normal range
+      const memPct     = crashLoop || dep.restarts ? fluctuate(60) : Math.max(93, fluctuate(95));
+      const status     = crashLoop ? 'Running' : 'Failed';
+      pods.push({
+        name: `${dep.name}-${suffix}`, namespace: dep.ns,
+        nodeName: nodeNames[nodeIdx % nodeNames.length],
+        status, ready: false, restarts, crashLoop,
+        containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
+        createdAt: now, labels: { app: dep.name, env: dep.ns },
+        ownerKind: 'ReplicaSet', ownerName: `${dep.name}-${suffix}`,
+        cpuLimit: '200m', memLimit: `${memLimitMi}Mi`,
+        memLimitBytes: memLimitMi * 1024 * 1024,
+        cpuRequest: '50m', memRequest: '128Mi',
+        cpu: `${Math.round(10 + Math.random() * 80)}m`,
+        memory: `${Math.round(memLimitMi * memPct / 100)}Mi`,
+        memPct,
+      });
+      nodeIdx++;
+    }
+  }
+
+  // Phase-based injection
+  if (phase === 'degrade') {
+    injectDegraded(podA, 65); // orange
+    injectDegraded(podB, 84); // red (no alert yet)
+  } else if (phase === 'alert') {
+    injectDegraded(podA, 65); // podA stays orange
+    injectAlert(podB);        // podB escalates → toast
+  }
+  // calm / recovery: nothing injected → pods absent → auto-recover if needed
 
   const namespaces = NAMESPACES.map(name => ({
     name,

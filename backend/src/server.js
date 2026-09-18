@@ -92,10 +92,11 @@ function broadcast(clients, msg) {
 
 wss.on('connection', async (ws, req) => {
   console.log(`[WS] Client connected from ${req.socket.remoteAddress}`);
-  ws._logAbort = null;
+  ws._logAbort    = null;
+  ws._connectedAt = Date.now();
 
   try {
-    const data = await getClusterData();
+    const data = await getClusterData(ws._connectedAt);
     ws.send(JSON.stringify({ type: 'cluster_update', data }));
   } catch (err) {
     ws.send(JSON.stringify({ type: 'error', message: err.message }));
@@ -141,14 +142,16 @@ wss.on('connection', async (ws, req) => {
   ws.on('error', (err) => console.error('[WS] Error:', err.message));
 });
 
-// Poll K8S every 5 seconds and push to all clients
+// Poll K8S every 5 seconds — per-client so demo phase is relative to each connection
 setInterval(async () => {
-  if (wss.clients.size === 0) return;
-  try {
-    const data = await getClusterData();
-    broadcast(wss.clients, { type: 'cluster_update', data });
-  } catch (err) {
-    broadcast(wss.clients, { type: 'error', message: err.message });
+  for (const ws of wss.clients) {
+    if (ws.readyState !== ws.OPEN) continue;
+    try {
+      const data = await getClusterData(ws._connectedAt);
+      ws.send(JSON.stringify({ type: 'cluster_update', data }));
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'error', message: err.message }));
+    }
   }
 }, 5000);
 

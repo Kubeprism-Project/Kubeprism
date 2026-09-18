@@ -4,7 +4,9 @@ import { Text, Billboard } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
 import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
+import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge } from '../utils/podColors';
+import { activeAlertCount } from '../utils/alerts';
 
 const LABEL_Y = 1.2;
 const SUB_Y   = 0.93;
@@ -14,11 +16,13 @@ function NodeCube({ node, index, total, pods, onClick }) {
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
 
+  const activeAlerts = useStore(s => s.activeAlerts);
   const nodePods    = pods.filter(p => p.nodeName === node.name);
   const runningPods = nodePods.filter(p => p.status === 'Running').length;
   const totalPods   = nodePods.length;
-  const fillColor = worstMemFill(nodePods) || (node.status === 'Ready' ? '#7eb8d4' : '#d47e7e');
-  const edgeColor = worstStatusEdge(nodePods);
+  const fillColor   = worstMemFill(nodePods) || (node.status === 'Ready' ? '#7eb8d4' : '#d47e7e');
+  const edgeColor   = worstStatusEdge(nodePods);
+  const alerts      = activeAlertCount(nodePods, activeAlerts);
 
   const cols    = Math.ceil(Math.sqrt(total));
   const spacing = 5;
@@ -60,6 +64,8 @@ function NodeCube({ node, index, total, pods, onClick }) {
           hovered={hovered}
         />
       </animated.group>
+
+      <AlertBadge count={alerts} cubeHalf={0.6} />
 
       <Billboard position={[0, LABEL_Y, 0]}>
         <Text fontSize={0.2} color="#b8c8d8" anchorX="center">
