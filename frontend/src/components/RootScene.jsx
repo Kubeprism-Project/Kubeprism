@@ -6,7 +6,7 @@ import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
 import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge } from '../utils/podColors';
-import { alertCount } from '../utils/alerts';
+import { activeAlertCount } from '../utils/alerts';
 
 // cube size 1.5 → half = 0.75
 const LABEL_Y = 0.75 + 0.65; // 1.4
@@ -75,12 +75,13 @@ function ModeCube({ mode, fillColor, edgeColor, alerts, index }) {
 }
 
 export default function RootScene() {
-  const clusterData = useStore(s => s.clusterData);
+  const clusterData  = useStore(s => s.clusterData);
+  const activeAlerts = useStore(s => s.activeAlerts);
   const pods        = clusterData?.pods || [];
   const clusterName = clusterData?.clusterName || '';
   const fillColor   = worstMemFill(pods);
   const edgeColor   = worstStatusEdge(pods);
-  const alerts      = alertCount(pods);
+  const alerts      = activeAlertCount(pods, activeAlerts);
 
   return (
     <group>
