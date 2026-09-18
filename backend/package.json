@@ -7,7 +7,7 @@
     "dev": "node --watch src/server.js"
   },
   "dependencies": {
-    "@kubernetes/client-node": "^0.21.0",
+    "@kubernetes/client-node": "^0.22.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "ws": "^8.17.1"
