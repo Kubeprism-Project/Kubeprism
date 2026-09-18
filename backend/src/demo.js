@@ -37,14 +37,29 @@ const NODES = [
   { name: 'k8s-node-03', pods: 28 },
 ];
 
-// Rotating incidents — one new alert every 2 minutes, previous one auto-recovers
+// Rotating incidents — new alert every 2 min, active for first 30s then auto-recovers
+// Each entry covers a different failure scenario for maximum demo coverage
 const INCIDENT_POOL = [
-  { name: 'payment-service', ns: 'production',  replicas: 2, memPct: 98 },
-  { name: 'recommender',     ns: 'staging',     replicas: 1, memPct: 40, crashLoop: true },
-  { name: 'vector',          ns: 'logging',     replicas: 1, memPct: 55, restarts: 6 },
-  { name: 'redis-cache',     ns: 'production',  replicas: 1, memPct: 97 },
-  { name: 'kube-proxy',      ns: 'kube-system', replicas: 2, memPct: 44, crashLoop: true },
-  { name: 'tracing-agent',   ns: 'monitoring',  replicas: 1, memPct: 50, restarts: 9 },
+  // OOMKilled — memory above threshold → status Failed
+  { name: 'payment-service',  ns: 'production',  replicas: 2, memPct: 98 },
+  // CrashLoopBackOff — container keeps restarting
+  { name: 'recommender',      ns: 'staging',     replicas: 1, memPct: 40, crashLoop: true },
+  // High restart count — pod unstable but still Running
+  { name: 'vector',           ns: 'logging',     replicas: 1, memPct: 55, restarts: 11 },
+  // OOM on single-replica critical service
+  { name: 'redis-cache',      ns: 'production',  replicas: 1, memPct: 97 },
+  // CrashLoop in kube-system — infra-level incident
+  { name: 'kube-proxy',       ns: 'kube-system', replicas: 2, memPct: 44, crashLoop: true },
+  // Restart storm in monitoring stack
+  { name: 'tracing-agent',    ns: 'monitoring',  replicas: 1, memPct: 50, restarts: 9 },
+  // Multi-pod OOM in staging
+  { name: 'load-tester',      ns: 'staging',     replicas: 3, memPct: 96 },
+  // CrashLoop in ingress — external traffic impact
+  { name: 'ingress-default-backend', ns: 'ingress', replicas: 1, memPct: 35, crashLoop: true },
+  // Restart accumulation on monitoring
+  { name: 'thanos-compactor', ns: 'monitoring',  replicas: 1, memPct: 60, restarts: 7 },
+  // OOM burst in production worker pool
+  { name: 'batch-processor',  ns: 'production',  replicas: 4, memPct: 95 },
 ];
 
 // Stable random suffixes per deployment/pod — seeded to be consistent across calls
@@ -69,9 +84,13 @@ function podStatus(memPct) {
 }
 
 export function getDemoData() {
-  const now      = new Date().toISOString();
-  const waveIdx  = Math.floor(Date.now() / (2 * 60 * 1000));
-  const incident = INCIDENT_POOL[waveIdx % INCIDENT_POOL.length];
+  const now           = new Date().toISOString();
+  const WAVE_MS       = 2 * 60 * 1000; // 2 minutes between incidents
+  const ACTIVE_MS     = 30 * 1000;     // incident visible for 30 seconds then auto-recovers
+  const waveIdx       = Math.floor(Date.now() / WAVE_MS);
+  const wavePhaseMs   = Date.now() % WAVE_MS;
+  const incidentActive = wavePhaseMs < ACTIVE_MS;
+  const incident      = incidentActive ? INCIDENT_POOL[waveIdx % INCIDENT_POOL.length] : null;
 
   const pods = [];
   const deployments = [];
@@ -130,8 +149,8 @@ export function getDemoData() {
     }
   }
 
-  // Inject the current rotating incident pod
-  {
+  // Inject the current rotating incident pod (only during the active window)
+  if (incident) {
     const dep = incident;
     const selector = { app: dep.name, env: dep.ns };
     deployments.push({
