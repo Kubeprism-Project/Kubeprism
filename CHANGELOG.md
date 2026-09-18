@@ -29,6 +29,12 @@
 - `AlertToast` — drives `activeAlerts` store, manages recovery detection on each cluster data update
 - Demo phase calculated relative to WebSocket `connectedAt` timestamp — reload always starts in calm phase
 
+### Security
+
+- Upgraded `@kubernetes/client-node` from 0.21.0 to 0.22.3
+- Fixed **2 critical CVEs** and 1 high CVE in `jsonpath-plus` (Remote Code Execution — `jsonpath-plus` 8.1.0 → 10.4.0)
+- Remaining 6 Dependabot alerts are inherited from the deprecated `request` library (still used by `@kubernetes/client-node` upstream) — not exploitable in this context as `request` is only used internally to call the Kubernetes API
+
 ---
 
 ## [0.0.1] - 2026-09-17
