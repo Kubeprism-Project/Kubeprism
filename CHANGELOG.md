@@ -29,6 +29,20 @@
 - `AlertToast` — drives `activeAlerts` store, manages recovery detection on each cluster data update
 - Demo phase calculated relative to WebSocket `connectedAt` timestamp — reload always starts in calm phase
 
+#### K8s Events
+- **EVENTS tab** in LogModal — dedicated panel alongside LOGS, showing the event stream of any pod
+- Events grid: timestamp · type (Normal/Warning) · reason · message · repeat count
+- Color-coded by reason: `OOMKilling`, `BackOff`, `Failed` → red; `Unhealthy`, `FailedScheduling` → yellow; `Scheduled`, `Pulled`, `Started` → green
+- REST endpoint `GET /api/pods/:namespace/:name/events` — real cluster via `listNamespacedEvent` fieldSelector
+- Demo events: realistic sequences per incident type (CrashLoop → BackOff escalation, OOM kill, unhealthy probe, healthy lifecycle)
+
+#### Global Search (Cmd+K)
+- Instant search across all resources: pods, namespaces, deployments, nodes
+- Keyboard navigation: ↑↓ arrows · Enter to open · Escape to close
+- Type badges with contextual colors (NODE/NS/DEPLOY/POD), match highlighting
+- Smart navigation: node → cluster view, namespace → ns view, deployment → dep view, pod → opens LogModal
+- Cmd+K shortcut hint badge in HUD top bar
+
 ### Security
 
 - Upgraded `@kubernetes/client-node` from 0.21.0 to 0.22.3
