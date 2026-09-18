@@ -266,8 +266,8 @@ function formatDeployment(dep) {
   };
 }
 
-export async function getClusterData() {
-  if (activeClusterName === 'demo') return getDemoData();
+export async function getClusterData(connectedAt = 0) {
+  if (activeClusterName === 'demo') return getDemoData(connectedAt);
 
   const [nodes, namespaces, pods, deployments, metrics] = await Promise.all([
     coreV1Api.listNode(),

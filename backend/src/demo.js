@@ -83,10 +83,12 @@ function podStatus(memPct) {
   return 'Running';
 }
 
-export function getDemoData() {
+export function getDemoData(connectedAt = 0) {
   const now      = new Date().toISOString();
-  const phaseMs  = Date.now() % CYCLE_MS;
-  const waveIdx  = Math.floor(Date.now() / CYCLE_MS);
+  // Phase is relative to when this client connected, so a fresh reload always starts calm
+  const elapsed  = connectedAt > 0 ? Date.now() - connectedAt : Date.now() % CYCLE_MS;
+  const phaseMs  = elapsed % CYCLE_MS;
+  const waveIdx  = Math.floor(elapsed / CYCLE_MS);
 
   // Which phase are we in?
   const phase = phaseMs < PHASE_CALM    ? 'calm'
