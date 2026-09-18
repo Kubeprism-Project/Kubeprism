@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { Writable } from 'stream';
-import { getClusterData, getLogs, streamLogs, listClusters, getActiveCluster, addCluster, removeCluster, activateCluster } from './k8s.js';
+import { getClusterData, getLogs, streamLogs, getEvents, listClusters, getActiveCluster, addCluster, removeCluster, activateCluster } from './k8s.js';
 
 const app = express();
 app.use(cors());
@@ -67,6 +67,17 @@ app.post('/api/clusters/:name/activate', async (req, res) => {
     const detail = err.body?.message || err.message;
     console.error(`[ACTIVATE] Connected but data fetch failed (${status}):`, detail);
     res.json({ ok: true, active: req.params.name, warning: detail });
+  }
+});
+
+// Events for a pod
+app.get('/api/pods/:namespace/:name/events', async (req, res) => {
+  const { namespace, name } = req.params;
+  try {
+    const events = await getEvents(namespace, name);
+    res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

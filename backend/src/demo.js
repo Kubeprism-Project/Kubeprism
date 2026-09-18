@@ -266,6 +266,59 @@ export function getDemoData(connectedAt = 0) {
   };
 }
 
+// Demo events — realistic sequences based on pod failure type
+export function getDemoEvents(namespace, podName) {
+  const now   = Date.now();
+  const ago   = (s) => new Date(now - s * 1000).toISOString();
+
+  // Identify pod type from name
+  const base = podName.replace(/-[a-z0-9]{5}$/, '');
+  const dep   = [...DEPLOYMENTS, ...INCIDENT_POOL].find(d => d.name === base && d.ns === namespace);
+
+  const isCrashLoop = dep?.crashLoop;
+  const isOOM       = dep && !dep.crashLoop && !dep.restarts && (dep.memPct || 0) > 90;
+  const isRestarts  = dep?.restarts >= 5;
+
+  const image = `registry.example.com/${base}:latest`;
+
+  // Base events every pod has
+  const events = [
+    { time: ago(600), type: 'Normal',  reason: 'Scheduled',  message: `Successfully assigned ${namespace}/${podName} to k8s-node-01`, count: 1 },
+    { time: ago(598), type: 'Normal',  reason: 'Pulling',    message: `Pulling image "${image}"`, count: 1 },
+    { time: ago(595), type: 'Normal',  reason: 'Pulled',     message: `Successfully pulled image "${image}" in 2.847s`, count: 1 },
+    { time: ago(594), type: 'Normal',  reason: 'Created',    message: `Created container ${base}`, count: 1 },
+    { time: ago(593), type: 'Normal',  reason: 'Started',    message: `Started container ${base}`, count: 1 },
+  ];
+
+  if (isCrashLoop) {
+    events.push(
+      { time: ago(580), type: 'Warning', reason: 'BackOff',   message: `Back-off restarting failed container ${base} in pod ${podName}`, count: 3 },
+      { time: ago(420), type: 'Warning', reason: 'BackOff',   message: `Back-off restarting failed container ${base} in pod ${podName}`, count: 8 },
+      { time: ago(240), type: 'Warning', reason: 'BackOff',   message: `Back-off restarting failed container ${base} in pod ${podName}`, count: 14 },
+      { time: ago(60),  type: 'Warning', reason: 'BackOff',   message: `Back-off restarting failed container ${base} in pod ${podName}`, count: 21 },
+    );
+  } else if (isOOM) {
+    events.push(
+      { time: ago(480), type: 'Warning', reason: 'OOMKilling',  message: `Memory limit reached. Killing container ${base} with 512Mi of memory limit, which may cause pod to be OOMKilled.`, count: 1 },
+      { time: ago(300), type: 'Warning', reason: 'OOMKilling',  message: `Memory limit reached. Killing container ${base} with 512Mi of memory limit, which may cause pod to be OOMKilled.`, count: 2 },
+      { time: ago(120), type: 'Warning', reason: 'BackOff',     message: `Back-off restarting failed container ${base} in pod ${podName}`, count: 4 },
+    );
+  } else if (isRestarts) {
+    events.push(
+      { time: ago(500), type: 'Warning', reason: 'Unhealthy',  message: `Liveness probe failed: HTTP probe failed with statuscode: 500`, count: 2 },
+      { time: ago(380), type: 'Warning', reason: 'Unhealthy',  message: `Liveness probe failed: HTTP probe failed with statuscode: 500`, count: 5 },
+      { time: ago(200), type: 'Warning', reason: 'BackOff',    message: `Back-off restarting failed container ${base} in pod ${podName}`, count: dep.restarts },
+    );
+  } else {
+    // Healthy pod — only normal events + optional readiness
+    events.push(
+      { time: ago(590), type: 'Normal', reason: 'Pulling',   message: `Pulling image "${image}"`, count: 1 },
+    );
+  }
+
+  return events.sort((a, b) => new Date(a.time) - new Date(b.time));
+}
+
 export function getDemoLogs(podName) {
   const lines = [];
   const now = Date.now();

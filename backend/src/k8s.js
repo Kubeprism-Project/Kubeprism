@@ -3,7 +3,7 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { getDemoData, getDemoLogs } from './demo.js';
+import { getDemoData, getDemoLogs, getDemoEvents } from './demo.js';
 
 // Persist kubeconfigs next to this file
 const CONFIGS_DIR = path.resolve('./kubeconfigs');
@@ -295,6 +295,23 @@ export async function getClusterData(connectedAt = 0) {
     deployments: deployments.body.items.map(formatDeployment),
     updatedAt:   new Date().toISOString(),
   };
+}
+
+export async function getEvents(namespace, podName) {
+  if (activeClusterName === 'demo') return getDemoEvents(namespace, podName);
+  const res = await coreV1Api.listNamespacedEvent(
+    namespace, undefined, undefined, undefined,
+    `involvedObject.name=${podName},involvedObject.namespace=${namespace}`,
+  );
+  return (res.body.items || [])
+    .map(e => ({
+      time:    e.lastTimestamp || e.firstTimestamp || e.metadata.creationTimestamp,
+      type:    e.type,
+      reason:  e.reason,
+      message: e.message,
+      count:   e.count || 1,
+    }))
+    .sort((a, b) => new Date(a.time) - new Date(b.time));
 }
 
 export async function getLogs(namespace, podName, container, tailLines = 200) {
