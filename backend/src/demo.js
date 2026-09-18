@@ -8,13 +8,13 @@ const DEPLOYMENTS = [
   { name: 'worker',           ns: 'production', replicas: 5, memPct: 78 },
   { name: 'scheduler',        ns: 'production', replicas: 1, memPct: 30 },
   { name: 'notifier',         ns: 'production', replicas: 2, memPct: 55 },
-  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 88, crashLoop: true },
-  { name: 'event-processor',  ns: 'production', replicas: 2, memPct: 92 },
+  { name: 'data-sync',        ns: 'production', replicas: 1, memPct: 58 },
+  { name: 'event-processor',  ns: 'production', replicas: 2, memPct: 71 },
   // staging
   { name: 'api-gateway',      ns: 'staging',    replicas: 1, memPct: 20 },
   { name: 'auth-service',     ns: 'staging',    replicas: 1, memPct: 15 },
   { name: 'worker',           ns: 'staging',    replicas: 2, memPct: 40 },
-  { name: 'event-handler',    ns: 'staging',    replicas: 1, memPct: 25, restarts: 8 },
+  { name: 'event-handler',    ns: 'staging',    replicas: 1, memPct: 25 },
   // monitoring
   { name: 'prometheus',       ns: 'monitoring', replicas: 1, memPct: 70 },
   { name: 'grafana',          ns: 'monitoring', replicas: 1, memPct: 35 },
@@ -27,7 +27,7 @@ const DEPLOYMENTS = [
   { name: 'ingress-nginx',    ns: 'ingress',    replicas: 2, memPct: 42 },
   { name: 'cert-manager',     ns: 'ingress',    replicas: 1, memPct: 16 },
   // logging
-  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 82, restarts: 7, crashLoop: true },
+  { name: 'loki',             ns: 'logging',    replicas: 1, memPct: 52 },
   { name: 'promtail',         ns: 'logging',    replicas: 2, memPct: 33 },
 ];
 
