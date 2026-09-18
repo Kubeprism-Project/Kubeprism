@@ -37,6 +37,16 @@ const NODES = [
   { name: 'k8s-node-03', pods: 28 },
 ];
 
+// Rotating incidents — one new alert every 2 minutes, previous one auto-recovers
+const INCIDENT_POOL = [
+  { name: 'payment-service', ns: 'production',  replicas: 2, memPct: 98 },
+  { name: 'recommender',     ns: 'staging',     replicas: 1, memPct: 40, crashLoop: true },
+  { name: 'vector',          ns: 'logging',     replicas: 1, memPct: 55, restarts: 6 },
+  { name: 'redis-cache',     ns: 'production',  replicas: 1, memPct: 97 },
+  { name: 'kube-proxy',      ns: 'kube-system', replicas: 2, memPct: 44, crashLoop: true },
+  { name: 'tracing-agent',   ns: 'monitoring',  replicas: 1, memPct: 50, restarts: 9 },
+];
+
 // Stable random suffixes per deployment/pod — seeded to be consistent across calls
 const _seeds = {};
 function stableSuffix(key, len = 5) {
@@ -59,7 +69,10 @@ function podStatus(memPct) {
 }
 
 export function getDemoData() {
-  const now = new Date().toISOString();
+  const now      = new Date().toISOString();
+  const waveIdx  = Math.floor(Date.now() / (2 * 60 * 1000));
+  const incident = INCIDENT_POOL[waveIdx % INCIDENT_POOL.length];
+
   const pods = [];
   const deployments = [];
 
@@ -111,6 +124,44 @@ export function getDemoData() {
         memRequest: '128Mi',
         cpu: `${Math.round(10 + Math.random() * 80)}m`,
         memory: `${memUsedMi}Mi`,
+        memPct,
+      });
+      nodeIdx++;
+    }
+  }
+
+  // Inject the current rotating incident pod
+  {
+    const dep = incident;
+    const selector = { app: dep.name, env: dep.ns };
+    deployments.push({
+      name: dep.name, namespace: dep.ns,
+      replicas: dep.replicas, readyReplicas: 0,
+      availableReplicas: 0, updatedReplicas: dep.replicas,
+      health: 'Critical', createdAt: now, labels: selector, selector,
+      images: [`registry.example.com/${dep.name}:latest`],
+    });
+    for (let i = 0; i < dep.replicas; i++) {
+      const suffix    = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
+      const memPct    = fluctuate(dep.memPct);
+      const memLimitMi = 512;
+      const crashLoop = dep.crashLoop || false;
+      const restarts  = dep.restarts  || (crashLoop ? 14 : 0);
+      const status    = crashLoop ? 'Running' : podStatus(memPct);
+      pods.push({
+        name: `${dep.name}-${suffix}`,
+        namespace: dep.ns,
+        nodeName: nodeNames[nodeIdx % nodeNames.length],
+        status, ready: false, restarts, crashLoop,
+        containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
+        createdAt: now,
+        labels: { app: dep.name, env: dep.ns },
+        ownerKind: 'ReplicaSet', ownerName: `${dep.name}-${suffix}`,
+        cpuLimit: '200m', memLimit: `${memLimitMi}Mi`,
+        memLimitBytes: memLimitMi * 1024 * 1024,
+        cpuRequest: '50m', memRequest: '128Mi',
+        cpu: `${Math.round(10 + Math.random() * 80)}m`,
+        memory: `${Math.round(memLimitMi * memPct / 100)}Mi`,
         memPct,
       });
       nodeIdx++;
