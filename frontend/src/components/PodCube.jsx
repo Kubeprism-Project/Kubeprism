@@ -35,12 +35,11 @@ export default function PodCube({ pod, position, index, showNamespace = false })
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
 
-  const fillColor = pod.memPct != null
+  const fillColor   = pod.memPct != null
     ? pod.memPct >= 80 ? '#d47e7e' : pod.memPct >= 50 ? '#d4c07e' : '#7ed4a8'
     : POD_COLOR[pod.status] || POD_COLOR.Unknown;
-  const edgeColor = POD_COLOR[pod.status] || POD_COLOR.Unknown;
-  const color = fillColor; // used for labels
-  const openLogs = () => useStore.getState().openPodLogs(pod);
+  const edgeColor   = POD_COLOR[pod.status] || POD_COLOR.Unknown;
+  const openPodLogs = useStore(s => s.openPodLogs);
 
   const { scale } = useSpring({
     scale: hovered ? 1.18 : 1,
@@ -67,7 +66,7 @@ export default function PodCube({ pod, position, index, showNamespace = false })
   return (
     <group
       position={position}
-      onClick={(e) => { e.stopPropagation(); openLogs(); }}
+      onClick={(e) => { e.stopPropagation(); openPodLogs(pod); }}
       onPointerOver={() => { setHovered(true);  document.body.style.cursor = 'pointer'; }}
       onPointerOut ={() => { setHovered(false); document.body.style.cursor = 'default'; }}
     >
@@ -89,7 +88,7 @@ export default function PodCube({ pod, position, index, showNamespace = false })
         </Text>
       </Billboard>
       <Billboard position={[0, SUB_Y, 0]}>
-        <Text fontSize={0.14} color={color} anchorX="center">
+        <Text fontSize={0.14} color={fillColor} anchorX="center">
           {subtitle}
         </Text>
       </Billboard>

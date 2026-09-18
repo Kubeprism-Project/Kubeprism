@@ -17,9 +17,8 @@ function NodeCube({ node, index, total, pods, onClick }) {
   const nodePods    = pods.filter(p => p.nodeName === node.name);
   const runningPods = nodePods.filter(p => p.status === 'Running').length;
   const totalPods   = nodePods.length;
-  const fillColor   = worstMemFill(nodePods)    || (node.status === 'Ready' ? '#7eb8d4' : '#d47e7e');
-  const edgeColor   = worstStatusEdge(nodePods);
-  const color       = fillColor; // used for labels
+  const fillColor = worstMemFill(nodePods) || (node.status === 'Ready' ? '#7eb8d4' : '#d47e7e');
+  const edgeColor = worstStatusEdge(nodePods);
 
   const cols    = Math.ceil(Math.sqrt(total));
   const spacing = 5;
@@ -68,7 +67,7 @@ function NodeCube({ node, index, total, pods, onClick }) {
         </Text>
       </Billboard>
       <Billboard position={[0, SUB_Y, 0]}>
-        <Text fontSize={0.14} color={color} anchorX="center">
+        <Text fontSize={0.14} color={fillColor} anchorX="center">
           {node.status} · {runningPods}/{totalPods} pods
         </Text>
       </Billboard>
@@ -77,10 +76,8 @@ function NodeCube({ node, index, total, pods, onClick }) {
 }
 
 export default function ClusterScene() {
-  const { clusterData, navigateTo } = useStore(s => ({
-    clusterData: s.clusterData,
-    navigateTo:  s.navigateTo,
-  }));
+  const clusterData = useStore(s => s.clusterData);
+  const navigateTo  = useStore(s => s.navigateTo);
 
   const nodes = clusterData?.nodes || [];
   const pods  = clusterData?.pods  || [];
