@@ -37,30 +37,30 @@ const NODES = [
   { name: 'k8s-node-03', pods: 28 },
 ];
 
-// Rotating incidents — new alert every 2 min, active for first 30s then auto-recovers
-// Each entry covers a different failure scenario for maximum demo coverage
+// Incident pool — each entry defines a pod and its alert failure mode
+// Two pods are picked per cycle: one goes orange then stays, the other escalates to alert
 const INCIDENT_POOL = [
-  // OOMKilled — memory above threshold → status Failed
-  { name: 'payment-service',  ns: 'production',  replicas: 2, memPct: 98 },
-  // CrashLoopBackOff — container keeps restarting
-  { name: 'recommender',      ns: 'staging',     replicas: 1, memPct: 40, crashLoop: true },
-  // High restart count — pod unstable but still Running
-  { name: 'vector',           ns: 'logging',     replicas: 1, memPct: 55, restarts: 11 },
-  // OOM on single-replica critical service
-  { name: 'redis-cache',      ns: 'production',  replicas: 1, memPct: 97 },
-  // CrashLoop in kube-system — infra-level incident
-  { name: 'kube-proxy',       ns: 'kube-system', replicas: 2, memPct: 44, crashLoop: true },
-  // Restart storm in monitoring stack
-  { name: 'tracing-agent',    ns: 'monitoring',  replicas: 1, memPct: 50, restarts: 9 },
-  // Multi-pod OOM in staging
-  { name: 'load-tester',      ns: 'staging',     replicas: 3, memPct: 96 },
-  // CrashLoop in ingress — external traffic impact
-  { name: 'ingress-default-backend', ns: 'ingress', replicas: 1, memPct: 35, crashLoop: true },
-  // Restart accumulation on monitoring
-  { name: 'thanos-compactor', ns: 'monitoring',  replicas: 1, memPct: 60, restarts: 7 },
-  // OOM burst in production worker pool
-  { name: 'batch-processor',  ns: 'production',  replicas: 4, memPct: 95 },
+  { name: 'payment-service',         ns: 'production',  replicas: 2, crashLoop: false, restarts: 0  },
+  { name: 'recommender',             ns: 'staging',     replicas: 1, crashLoop: true,  restarts: 0  },
+  { name: 'vector',                  ns: 'logging',     replicas: 1, crashLoop: false, restarts: 11 },
+  { name: 'redis-cache',             ns: 'production',  replicas: 1, crashLoop: false, restarts: 0  },
+  { name: 'kube-proxy',              ns: 'kube-system', replicas: 2, crashLoop: true,  restarts: 0  },
+  { name: 'tracing-agent',           ns: 'monitoring',  replicas: 1, crashLoop: false, restarts: 9  },
+  { name: 'load-tester',             ns: 'staging',     replicas: 3, crashLoop: false, restarts: 0  },
+  { name: 'ingress-default-backend', ns: 'ingress',     replicas: 1, crashLoop: true,  restarts: 0  },
+  { name: 'thanos-compactor',        ns: 'monitoring',  replicas: 1, crashLoop: false, restarts: 7  },
+  { name: 'batch-processor',         ns: 'production',  replicas: 4, crashLoop: false, restarts: 0  },
 ];
+
+// Cycle phases (3 min total):
+//   0–60s  : calm       — all pods green
+//   60–90s : degraded   — podA orange (memPct ~65), podB red (memPct ~85), both Running
+//   90–150s: alert      — podB escalates to Failed/CrashLoop → toast raised
+//   150–180s: recovery  — both pods gone → auto-recover
+const CYCLE_MS      = 3 * 60 * 1000;
+const PHASE_CALM    = 60  * 1000;
+const PHASE_DEGRADE = 90  * 1000;
+const PHASE_ALERT   = 150 * 1000;
 
 // Stable random suffixes per deployment/pod — seeded to be consistent across calls
 const _seeds = {};
@@ -84,13 +84,19 @@ function podStatus(memPct) {
 }
 
 export function getDemoData() {
-  const now           = new Date().toISOString();
-  const WAVE_MS       = 2 * 60 * 1000; // new incident every 2 minutes
-  const ACTIVE_MS     = 90 * 1000;     // incident active for 90s, then 30s of calm before next wave
-  const waveIdx       = Math.floor(Date.now() / WAVE_MS);
-  const wavePhaseMs   = Date.now() % WAVE_MS;
-  const incidentActive = wavePhaseMs < ACTIVE_MS;
-  const incident      = incidentActive ? INCIDENT_POOL[waveIdx % INCIDENT_POOL.length] : null;
+  const now      = new Date().toISOString();
+  const phaseMs  = Date.now() % CYCLE_MS;
+  const waveIdx  = Math.floor(Date.now() / CYCLE_MS);
+
+  // Which phase are we in?
+  const phase = phaseMs < PHASE_CALM    ? 'calm'
+              : phaseMs < PHASE_DEGRADE ? 'degrade'
+              : phaseMs < PHASE_ALERT   ? 'alert'
+              : 'recovery';
+
+  // Two incident pods per wave (from different namespaces when possible)
+  const podA = INCIDENT_POOL[waveIdx % INCIDENT_POOL.length];
+  const podB = INCIDENT_POOL[(waveIdx + 1) % INCIDENT_POOL.length];
 
   const pods = [];
   const deployments = [];
@@ -149,33 +155,26 @@ export function getDemoData() {
     }
   }
 
-  // Inject the current rotating incident pod (only during the active window)
-  if (incident) {
-    const dep = incident;
+  // Helper: inject a degraded pod (orange or red, no alert)
+  function injectDegraded(dep, targetMemPct) {
     const selector = { app: dep.name, env: dep.ns };
     deployments.push({
       name: dep.name, namespace: dep.ns,
-      replicas: dep.replicas, readyReplicas: 0,
-      availableReplicas: 0, updatedReplicas: dep.replicas,
-      health: 'Critical', createdAt: now, labels: selector, selector,
+      replicas: dep.replicas, readyReplicas: dep.replicas,
+      availableReplicas: dep.replicas, updatedReplicas: dep.replicas,
+      health: 'Degraded', createdAt: now, labels: selector, selector,
       images: [`registry.example.com/${dep.name}:latest`],
     });
     for (let i = 0; i < dep.replicas; i++) {
-      const suffix    = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
-      // For OOM incidents, keep memPct firmly above the 90% threshold
-      const memPct    = dep.crashLoop || dep.restarts ? fluctuate(dep.memPct) : Math.max(93, fluctuate(dep.memPct));
+      const suffix     = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
+      const memPct     = fluctuate(targetMemPct);
       const memLimitMi = 512;
-      const crashLoop = dep.crashLoop || false;
-      const restarts  = dep.restarts  || (crashLoop ? 14 : 0);
-      const status    = crashLoop ? 'Running' : podStatus(memPct);
       pods.push({
-        name: `${dep.name}-${suffix}`,
-        namespace: dep.ns,
+        name: `${dep.name}-${suffix}`, namespace: dep.ns,
         nodeName: nodeNames[nodeIdx % nodeNames.length],
-        status, ready: false, restarts, crashLoop,
+        status: 'Running', ready: true, restarts: 0, crashLoop: false,
         containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
-        createdAt: now,
-        labels: { app: dep.name, env: dep.ns },
+        createdAt: now, labels: { app: dep.name, env: dep.ns },
         ownerKind: 'ReplicaSet', ownerName: `${dep.name}-${suffix}`,
         cpuLimit: '200m', memLimit: `${memLimitMi}Mi`,
         memLimitBytes: memLimitMi * 1024 * 1024,
@@ -187,6 +186,52 @@ export function getDemoData() {
       nodeIdx++;
     }
   }
+
+  // Helper: inject an alerting pod (Failed / CrashLoop / high restarts)
+  function injectAlert(dep) {
+    const selector = { app: dep.name, env: dep.ns };
+    deployments.push({
+      name: dep.name, namespace: dep.ns,
+      replicas: dep.replicas, readyReplicas: 0,
+      availableReplicas: 0, updatedReplicas: dep.replicas,
+      health: 'Critical', createdAt: now, labels: selector, selector,
+      images: [`registry.example.com/${dep.name}:latest`],
+    });
+    for (let i = 0; i < dep.replicas; i++) {
+      const suffix     = stableSuffix(`incident/${dep.ns}/${dep.name}/${i}`);
+      const memLimitMi = 512;
+      const crashLoop  = dep.crashLoop;
+      const restarts   = dep.restarts || (crashLoop ? 14 : 0);
+      // OOM: keep memPct firmly above 90 ; CrashLoop/restarts: normal range
+      const memPct     = crashLoop || dep.restarts ? fluctuate(60) : Math.max(93, fluctuate(95));
+      const status     = crashLoop ? 'Running' : 'Failed';
+      pods.push({
+        name: `${dep.name}-${suffix}`, namespace: dep.ns,
+        nodeName: nodeNames[nodeIdx % nodeNames.length],
+        status, ready: false, restarts, crashLoop,
+        containers: [{ name: dep.name, image: `registry.example.com/${dep.name}:latest` }],
+        createdAt: now, labels: { app: dep.name, env: dep.ns },
+        ownerKind: 'ReplicaSet', ownerName: `${dep.name}-${suffix}`,
+        cpuLimit: '200m', memLimit: `${memLimitMi}Mi`,
+        memLimitBytes: memLimitMi * 1024 * 1024,
+        cpuRequest: '50m', memRequest: '128Mi',
+        cpu: `${Math.round(10 + Math.random() * 80)}m`,
+        memory: `${Math.round(memLimitMi * memPct / 100)}Mi`,
+        memPct,
+      });
+      nodeIdx++;
+    }
+  }
+
+  // Phase-based injection
+  if (phase === 'degrade') {
+    injectDegraded(podA, 65); // orange
+    injectDegraded(podB, 84); // red (no alert yet)
+  } else if (phase === 'alert') {
+    injectDegraded(podA, 65); // podA stays orange
+    injectAlert(podB);        // podB escalates → toast
+  }
+  // calm / recovery: nothing injected → pods absent → auto-recover if needed
 
   const namespaces = NAMESPACES.map(name => ({
     name,
