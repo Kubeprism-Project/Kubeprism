@@ -4,7 +4,9 @@ import { Text, Billboard } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
 import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
+import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge, podsForDeployment } from '../utils/podColors';
+import { activeAlertCount } from '../utils/alerts';
 
 const HEALTH_COLOR = { Healthy: '#7ed4a8', Degraded: '#d4c07e', Critical: '#d47e7e' };
 
@@ -13,9 +15,11 @@ function DepCube({ deployment, pods, index, total, onClick }) {
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
 
+  const activeAlerts = useStore(s => s.activeAlerts);
   const depPods   = podsForDeployment(pods, deployment);
   const fillColor = worstMemFill(depPods) || HEALTH_COLOR[deployment.health] || '#3a5060';
   const edgeColor = worstStatusEdge(depPods);
+  const alerts    = activeAlertCount(depPods, activeAlerts);
   const cols   = Math.ceil(Math.sqrt(total));
   const spacing = 3.2;
   const col     = index % cols;
@@ -56,6 +60,8 @@ function DepCube({ deployment, pods, index, total, onClick }) {
           hovered={hovered}
         />
       </animated.group>
+
+      <AlertBadge count={alerts} cubeHalf={0.45} />
 
       <Billboard position={[0, 1.05, 0]}>
         <Text fontSize={0.2} color="#b8c8d8" anchorX="center" maxWidth={4}>

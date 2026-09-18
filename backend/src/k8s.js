@@ -3,7 +3,7 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { getDemoData, getDemoLogs } from './demo.js';
+import { getDemoData, getDemoLogs, getDemoEvents } from './demo.js';
 
 // Persist kubeconfigs next to this file
 const CONFIGS_DIR = path.resolve('./kubeconfigs');
@@ -212,6 +212,7 @@ function formatPod(pod) {
   const containerStatuses = pod.status?.containerStatuses || [];
   const allReady  = containerStatuses.every(c => c.ready);
   const restarts  = containerStatuses.reduce((sum, c) => sum + (c.restartCount || 0), 0);
+  const crashLoop = containerStatuses.some(c => c.state?.waiting?.reason === 'CrashLoopBackOff');
 
   const containers = pod.spec?.containers || [];
   let cpuLimitNano = 0, memLimitBytes = 0;
@@ -236,6 +237,7 @@ function formatPod(pod) {
     labels:     pod.metadata.labels || {},
     ownerKind:  pod.metadata.ownerReferences?.[0]?.kind,
     ownerName:  pod.metadata.ownerReferences?.[0]?.name,
+    crashLoop,
     cpuLimit:     hasLimits   && cpuLimitNano  > 0 ? formatCpuUsage(cpuLimitNano)  : null,
     memLimit:     hasLimits   && memLimitBytes > 0 ? formatMemUsage(memLimitBytes) : null,
     memLimitBytes: memLimitBytes > 0 ? memLimitBytes : null,
@@ -264,8 +266,8 @@ function formatDeployment(dep) {
   };
 }
 
-export async function getClusterData() {
-  if (activeClusterName === 'demo') return getDemoData();
+export async function getClusterData(connectedAt = 0) {
+  if (activeClusterName === 'demo') return getDemoData(connectedAt);
 
   const [nodes, namespaces, pods, deployments, metrics] = await Promise.all([
     coreV1Api.listNode(),
@@ -293,6 +295,23 @@ export async function getClusterData() {
     deployments: deployments.body.items.map(formatDeployment),
     updatedAt:   new Date().toISOString(),
   };
+}
+
+export async function getEvents(namespace, podName) {
+  if (activeClusterName === 'demo') return getDemoEvents(namespace, podName);
+  const res = await coreV1Api.listNamespacedEvent(
+    namespace, undefined, undefined, undefined,
+    `involvedObject.name=${podName},involvedObject.namespace=${namespace}`,
+  );
+  return (res.body.items || [])
+    .map(e => ({
+      time:    e.lastTimestamp || e.firstTimestamp || e.metadata.creationTimestamp,
+      type:    e.type,
+      reason:  e.reason,
+      message: e.message,
+      count:   e.count || 1,
+    }))
+    .sort((a, b) => new Date(a.time) - new Date(b.time));
 }
 
 export async function getLogs(namespace, podName, container, tailLines = 200) {

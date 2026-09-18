@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { Writable } from 'stream';
-import { getClusterData, getLogs, streamLogs, listClusters, getActiveCluster, addCluster, removeCluster, activateCluster } from './k8s.js';
+import { getClusterData, getLogs, streamLogs, getEvents, listClusters, getActiveCluster, addCluster, removeCluster, activateCluster } from './k8s.js';
 
 const app = express();
 app.use(cors());
@@ -70,6 +70,17 @@ app.post('/api/clusters/:name/activate', async (req, res) => {
   }
 });
 
+// Events for a pod
+app.get('/api/pods/:namespace/:name/events', async (req, res) => {
+  const { namespace, name } = req.params;
+  try {
+    const events = await getEvents(namespace, name);
+    res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Fetch last N lines of logs (REST)
 app.get('/api/pods/:namespace/:name/logs', async (req, res) => {
   const { namespace, name } = req.params;
@@ -92,10 +103,11 @@ function broadcast(clients, msg) {
 
 wss.on('connection', async (ws, req) => {
   console.log(`[WS] Client connected from ${req.socket.remoteAddress}`);
-  ws._logAbort = null;
+  ws._logAbort    = null;
+  ws._connectedAt = Date.now();
 
   try {
-    const data = await getClusterData();
+    const data = await getClusterData(ws._connectedAt);
     ws.send(JSON.stringify({ type: 'cluster_update', data }));
   } catch (err) {
     ws.send(JSON.stringify({ type: 'error', message: err.message }));
@@ -141,14 +153,16 @@ wss.on('connection', async (ws, req) => {
   ws.on('error', (err) => console.error('[WS] Error:', err.message));
 });
 
-// Poll K8S every 5 seconds and push to all clients
+// Poll K8S every 5 seconds — per-client so demo phase is relative to each connection
 setInterval(async () => {
-  if (wss.clients.size === 0) return;
-  try {
-    const data = await getClusterData();
-    broadcast(wss.clients, { type: 'cluster_update', data });
-  } catch (err) {
-    broadcast(wss.clients, { type: 'error', message: err.message });
+  for (const ws of wss.clients) {
+    if (ws.readyState !== ws.OPEN) continue;
+    try {
+      const data = await getClusterData(ws._connectedAt);
+      ws.send(JSON.stringify({ type: 'cluster_update', data }));
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'error', message: err.message }));
+    }
   }
 }, 5000);
 

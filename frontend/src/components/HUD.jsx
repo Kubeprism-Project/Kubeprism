@@ -198,6 +198,13 @@ export default function HUD() {
           {/* Status */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 11, color: '#334455' }}>{time}</span>
+            <div style={{
+              fontSize: 10, color: '#1a2a3a', border: '1px solid #18253a',
+              borderRadius: 6, padding: '4px 10px', letterSpacing: 1,
+              pointerEvents: 'none',
+            }}>
+              ⌘K
+            </div>
             <div style={css.statusBadge}>
               <div style={css.dot(connected)} />
               <span style={css.statusText}>
