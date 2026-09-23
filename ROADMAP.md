@@ -15,14 +15,15 @@ et des besoins remontés par la communauté Kubernetes.
 
 ---
 
-## v0.0.3 — Couverture complète des workloads
+## v0.0.3 — Couverture complète des workloads *(livré 23/09/2026)*
 
 **Objectif** : ne plus avoir de ressources invisibles.
 
-- [ ] **StatefulSets** — cubes dédiés (Postgres, Redis, Elasticsearch tournent en StatefulSet)
-- [ ] **DaemonSets** — visualisation par noeud (CNI, log collectors, monitoring agents)
-- [ ] **CronJobs / Jobs** — affichage avec etat du dernier run (Success / Failed / Running)
-- [ ] **ConfigMaps & Secrets** — vue liste accessible depuis un pod/deployment (pas de valeurs exposees pour les Secrets)
+- [x] **StatefulSets** — octahedron violet dans NamespaceScene, navigation vers pods
+- [x] **DaemonSets** — cylindre cyan, pods filtrés par ownerKind/ownerName
+- [x] **CronJobs / Jobs** — icosahedron amber, schedule + last run status
+- [x] **ConfigMaps & Secrets** — panel CM/SC dans HUD, onglets CM/SC, clés listées, valeurs jamais exposées
+- [x] **Performance** — GPU -40% Retina, géométries partagées, re-renders ciblés
 
 ---
 

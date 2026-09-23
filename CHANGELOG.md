@@ -1,5 +1,34 @@
 # Kubeprism — Changelog
 
+## [0.0.3] - 2026-09-23
+
+### Added
+
+#### Workload coverage
+- **StatefulSets** — octahedron 3D shape (purple) in NamespaceScene; click navigates to pod view; health Healthy/Degraded/Critical; demo: postgres, redis, elasticsearch, mongodb
+- **DaemonSets** — flat cylinder shape (cyan); pods filtered by `ownerKind=DaemonSet`; "X/N nodes" subtitle; demo: node-exporter, promtail, cilium-agent
+- **CronJobs** — icosahedron shape (amber); schedule + last run status displayed; green = OK, red = failed, grey = suspended
+- **ConfigMaps & Secrets** — `CM/SC` button in HUD at namespace/deployment level; two-tab panel (ConfigMaps / Secrets); keys listed, values never exposed for Secrets
+- **Search extended** — Cmd+K now covers STS, DS, CJ with type badges and navigation
+
+#### Performance
+- `dpr [1,2] → [1,1.5]` — ~40% fewer pixels on Retina (MacBook Pro) displays
+- `preserveDrawingBuffer` removed — faster buffer swaps each frame
+- `camera.far 1000 → 250` — tighter frustum, less GPU overhead
+- 3 pointLights → 1 — reduces per-fragment shading cost
+- Stars 2500 → 1200 — halves particle system overhead
+- Bloom `multisampling=0` + `mipmapBlur` — halves post-processing cost
+- `AdaptiveDpr` + `performance.min=0.5` — auto-reduces resolution under load
+- Shared Three.js geometries (module-level cache) — one `BoxGeometry` shared across all pod instances of same size
+- Targeted Zustand selectors — only affected components re-render on alert changes (was: all 143 pods re-rendered on any alert change)
+
+### Backend
+- `batchV1Api` for real CronJob support
+- `formatStatefulSet`, `formatDaemonSet`, `formatCronJob`, `formatConfigMap`, `formatSecret`
+- System ConfigMaps/Secrets filtered (kube-system, service-account-tokens)
+
+---
+
 ## [0.0.2] - 2026-09-18
 
 ### Added
