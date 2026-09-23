@@ -6,7 +6,15 @@ import * as THREE from 'three';
 import { useStore } from '../store/useStore';
 import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge, podsForWorkload } from '../utils/podColors';
-import { activeAlertCount } from '../utils/alerts';
+
+// Module-level shared geometries — created once for all workload instances
+function makeGeomPair(g) { return { geom: g, edges: new THREE.EdgesGeometry(g) }; }
+const SHARED_GEOMS = {
+  Deployment:  makeGeomPair(new THREE.BoxGeometry(0.9, 0.9, 0.9)),
+  StatefulSet: makeGeomPair(new THREE.OctahedronGeometry(0.6)),
+  DaemonSet:   makeGeomPair(new THREE.CylinderGeometry(0.7, 0.7, 0.3, 8)),
+  CronJob:     makeGeomPair(new THREE.IcosahedronGeometry(0.5, 0)),
+};
 
 // Colors per workload kind
 const KIND_COLOR = {
@@ -30,15 +38,9 @@ const CRON_STATUS_COLOR = (cj) => {
   return '#7ed4a8';
 };
 
-// Geometry mesh + edges per kind
+// Geometry mesh + edges per kind — uses shared module-level geometries
 function WorkloadMesh({ kind, color, edgeColor, hovered }) {
-  const geom = useMemo(() => {
-    if (kind === 'StatefulSet') return new THREE.OctahedronGeometry(0.6);
-    if (kind === 'DaemonSet')   return new THREE.CylinderGeometry(0.7, 0.7, 0.3, 8);
-    if (kind === 'CronJob')     return new THREE.IcosahedronGeometry(0.5, 0);
-    return new THREE.BoxGeometry(0.9, 0.9, 0.9);
-  }, [kind]);
-  const edges = useMemo(() => new THREE.EdgesGeometry(geom), [geom]);
+  const { geom, edges } = SHARED_GEOMS[kind] || SHARED_GEOMS.Deployment;
 
   return (
     <group>
@@ -80,10 +82,14 @@ export default function WorkloadCube({ workload, pods, index, total, onClick }) 
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
 
-  const activeAlerts = useStore(s => s.activeAlerts);
-
   const wPods     = podsForWorkload(pods, workload);
   const kindColor = KIND_COLOR[workload.kind];
+
+  // Targeted selector: only re-render when alerts for THIS workload's pods change
+  const podKeys = useMemo(() => wPods.map(p => `${p.namespace}/${p.name}`), [wPods]);
+  const alerts  = useStore(s =>
+    workload.kind === 'CronJob' ? 0 : podKeys.filter(k => !!s.activeAlerts[k]).length
+  );
 
   let fillColor, edgeColor;
   if (workload.kind === 'CronJob') {
@@ -99,7 +105,6 @@ export default function WorkloadCube({ workload, pods, index, total, onClick }) 
     edgeColor = worstStatusEdge(wPods) || fillColor;
   }
 
-  const alerts = workload.kind === 'CronJob' ? 0 : activeAlertCount(wPods, activeAlerts);
 
   // Grid in XY plane (not XZ) so sections along Z never overlap each other
   const cols    = Math.min(total, Math.ceil(Math.sqrt(total)));

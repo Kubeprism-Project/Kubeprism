@@ -6,7 +6,6 @@ import { useStore } from '../store/useStore';
 import CubeObject from './CubeObject';
 import AlertBadge from './AlertBadge';
 import { worstMemFill, worstStatusEdge } from '../utils/podColors';
-import { activeAlertCount } from '../utils/alerts';
 
 
 function NSCube({ ns, pods, deployments, index, total, onClick }) {
@@ -22,7 +21,6 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
   const offsetZ       = (Math.ceil(total / cols) - 1) / 2 * spacing;
   const pos           = [col * spacing - offsetX, 0, row * spacing - offsetZ];
 
-  const activeAlerts  = useStore(s => s.activeAlerts);
   const nsPods        = pods.filter(p => p.namespace === ns.name);
   const nsDeployments = deployments.filter(d => d.namespace === ns.name);
   const runningPods   = nsPods.filter(p => p.status === 'Running').length;
@@ -30,7 +28,8 @@ function NSCube({ ns, pods, deployments, index, total, onClick }) {
   const hasIssue    = nsDeployments.some(d => d.health === 'Critical');
   const fillColor = worstMemFill(nsPods) || (hasIssue ? '#d47e7e' : !allHealthy ? '#d4c07e' : '#7ed4a8');
   const edgeColor = worstStatusEdge(nsPods);
-  const alerts    = activeAlertCount(nsPods, activeAlerts);
+  const podKeys   = nsPods.map(p => `${p.namespace}/${p.name}`);
+  const alerts    = useStore(s => podKeys.filter(k => !!s.activeAlerts[k]).length);
 
   const { scale } = useSpring({
     scale: hovered ? 1.18 : 1,
