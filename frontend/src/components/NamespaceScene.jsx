@@ -45,7 +45,7 @@ export default function NamespaceScene() {
   const totalWorkloads = sections.reduce((acc, s) => acc + s.items.length, 0);
 
   // Layout sections along the Z axis with spacing
-  const SECTION_SPACING = 5.5;
+  const SECTION_SPACING = 7.0;
   const totalSections = sections.length;
   const totalDepth = (totalSections - 1) * SECTION_SPACING;
 

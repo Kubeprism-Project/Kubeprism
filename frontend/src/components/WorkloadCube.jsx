@@ -101,13 +101,15 @@ export default function WorkloadCube({ workload, pods, index, total, onClick }) 
 
   const alerts = workload.kind === 'CronJob' ? 0 : activeAlertCount(wPods, activeAlerts);
 
-  const cols    = Math.ceil(Math.sqrt(total));
+  // Grid in XY plane (not XZ) so sections along Z never overlap each other
+  const cols    = Math.min(total, Math.ceil(Math.sqrt(total)));
   const spacing = 3.2;
+  const rowSpacing = 3.0;
   const col     = index % cols;
   const row     = Math.floor(index / cols);
   const offsetX = ((cols - 1) / 2) * spacing;
-  const offsetZ = (Math.ceil(total / cols) - 1) / 2 * spacing;
-  const pos     = [col * spacing - offsetX, 0, row * spacing - offsetZ];
+  const offsetY = (Math.ceil(total / cols) - 1) / 2 * rowSpacing;
+  const pos     = [col * spacing - offsetX, offsetY - row * rowSpacing, 0];
 
   const { scale } = useSpring({ scale: hovered ? 1.18 : 1, config: { tension: 280, friction: 20 } });
 
