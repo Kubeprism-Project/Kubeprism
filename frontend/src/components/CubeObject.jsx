@@ -1,22 +1,33 @@
-import { useMemo, forwardRef } from 'react';
+import { forwardRef } from 'react';
 import * as THREE from 'three';
+
+// Module-level geometry cache — created once, shared across all cube instances
+const _geomCache = new Map();
+function getCachedBox(w, h, d) {
+  const key = `${w},${h},${d}`;
+  if (!_geomCache.has(key)) {
+    const geom  = new THREE.BoxGeometry(w, h, d);
+    const edges = new THREE.EdgesGeometry(geom);
+    _geomCache.set(key, { geom, edges });
+  }
+  return _geomCache.get(key);
+}
 
 /**
  * Cube with visible edges.
  * - Semi-transparent fill so faces are readable
  * - EdgesGeometry overlay for clean 12-edge outline
+ * - Geometries are shared at module level (no per-instance allocation)
  */
 const CubeObject = forwardRef(function CubeObject(
   { width = 1, height = 1, depth = 1, color = '#7eb8d4', edgeColor, opacity = 0.55, emissiveIntensity = 0.22, hovered = false },
   ref
 ) {
   const eColor = edgeColor || color;
-  const boxGeom  = useMemo(() => new THREE.BoxGeometry(width, height, depth), [width, height, depth]);
-  const edgeGeom = useMemo(() => new THREE.EdgesGeometry(boxGeom), [boxGeom]);
+  const { geom: boxGeom, edges: edgeGeom } = getCachedBox(width, height, depth);
 
   return (
     <group ref={ref}>
-      {/* Solid fill — semi-transparent so you see depth */}
       <mesh geometry={boxGeom}>
         <meshStandardMaterial
           color={color}
@@ -28,8 +39,6 @@ const CubeObject = forwardRef(function CubeObject(
           opacity={hovered ? 0.65 : opacity}
         />
       </mesh>
-
-      {/* Edge outline — bright, always visible */}
       <lineSegments geometry={edgeGeom}>
         <lineBasicMaterial color={eColor} transparent opacity={hovered ? 1 : 0.85} />
       </lineSegments>

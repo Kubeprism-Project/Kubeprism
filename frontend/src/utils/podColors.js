@@ -23,3 +23,16 @@ export function podsForDeployment(pods, deployment) {
     Object.entries(deployment.selector || {}).every(([k, v]) => p.labels?.[k] === v)
   );
 }
+
+// Match pods to any workload (StatefulSet/DaemonSet by ownerKind+ownerName, Deployment by selector)
+export function podsForWorkload(pods, workload) {
+  if (!workload) return [];
+  if (workload.kind === 'StatefulSet' || workload.kind === 'DaemonSet') {
+    return pods.filter(p =>
+      p.namespace === workload.namespace &&
+      p.ownerKind === workload.kind &&
+      p.ownerName === workload.name
+    );
+  }
+  return podsForDeployment(pods, workload);
+}

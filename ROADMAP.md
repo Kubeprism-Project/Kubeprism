@@ -15,7 +15,7 @@ et des besoins remontés par la communauté Kubernetes.
 
 ---
 
-## v0.2 — Couverture complète des workloads
+## v0.0.3 — Couverture complète des workloads
 
 **Objectif** : ne plus avoir de ressources invisibles.
 

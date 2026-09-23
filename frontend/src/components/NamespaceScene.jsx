@@ -1,79 +1,22 @@
-import { useRef, useMemo, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Text, Billboard } from '@react-three/drei';
-import { useSpring, animated } from '@react-spring/three';
 import { useStore } from '../store/useStore';
-import CubeObject from './CubeObject';
-import AlertBadge from './AlertBadge';
-import { worstMemFill, worstStatusEdge, podsForDeployment } from '../utils/podColors';
-import { activeAlertCount } from '../utils/alerts';
+import { Text, Billboard } from '@react-three/drei';
+import WorkloadCube from './WorkloadCube';
 
-const HEALTH_COLOR = { Healthy: '#7ed4a8', Degraded: '#d4c07e', Critical: '#d47e7e' };
+const KIND_ORDER = ['Deployment', 'StatefulSet', 'DaemonSet', 'CronJob'];
+const SECTION_COLOR = {
+  Deployment:  '#3a6a80',
+  StatefulSet: '#7a3a9a',
+  DaemonSet:   '#1a8a9a',
+  CronJob:     '#9a7a1a',
+};
 
-function DepCube({ deployment, pods, index, total, onClick }) {
-  const cubeRef  = useRef();
-  const groupRef = useRef();
-  const [hovered, setHovered] = useState(false);
-
-  const activeAlerts = useStore(s => s.activeAlerts);
-  const depPods   = podsForDeployment(pods, deployment);
-  const fillColor = worstMemFill(depPods) || HEALTH_COLOR[deployment.health] || '#3a5060';
-  const edgeColor = worstStatusEdge(depPods);
-  const alerts    = activeAlertCount(depPods, activeAlerts);
-  const cols   = Math.ceil(Math.sqrt(total));
-  const spacing = 3.2;
-  const col     = index % cols;
-  const row     = Math.floor(index / cols);
-  const offsetX = ((cols - 1) / 2) * spacing;
-  const offsetZ = (Math.ceil(total / cols) - 1) / 2 * spacing;
-  const pos     = [col * spacing - offsetX, 0, row * spacing - offsetZ];
-
-  const { scale } = useSpring({
-    scale: hovered ? 1.18 : 1,
-    config: { tension: 280, friction: 20 },
-  });
-
-  useFrame(({ clock }) => {
-    if (cubeRef.current) {
-      cubeRef.current.rotation.y += 0.004;
-      cubeRef.current.rotation.x += 0.002;
-    }
-    if (groupRef.current)
-      groupRef.current.position.y = Math.sin(clock.elapsedTime * 0.35 + index * 0.7) * 0.2;
-  });
-
+function SectionLabel({ label, color, position }) {
   return (
-    <group
-      position={pos}
-      onClick={(e) => { e.stopPropagation(); onClick(deployment); }}
-      onPointerOver={() => { setHovered(true);  document.body.style.cursor = 'pointer'; }}
-      onPointerOut ={() => { setHovered(false); document.body.style.cursor = 'default'; }}
-    >
-      <animated.group ref={groupRef} scale={scale}>
-        <CubeObject
-          ref={cubeRef}
-          width={0.9} height={0.9} depth={0.9}
-          color={fillColor}
-          edgeColor={edgeColor}
-          opacity={0.48}
-          emissiveIntensity={0.22}
-          hovered={hovered}
-        />
-      </animated.group>
-
-      <AlertBadge count={alerts} cubeHalf={0.45} />
-
-      <Billboard position={[0, 1.05, 0]}>
-        <Text fontSize={0.2} color="#b8c8d8" anchorX="center" maxWidth={4}>
-          {deployment.name}
-        </Text>
-      </Billboard>
-      <Billboard position={[0, 0.78, 0]}>
-        <Text fontSize={0.14} color={fillColor} anchorX="center">
-          {deployment.readyReplicas}/{deployment.replicas} · {deployment.health}
-        </Text>
-      </Billboard>
-    </group>
+    <Billboard position={position}>
+      <Text fontSize={0.16} color={color} anchorX="center" letterSpacing={0.08}>
+        {label.toUpperCase()}
+      </Text>
+    </Billboard>
   );
 }
 
@@ -82,17 +25,38 @@ export default function NamespaceScene() {
   const clusterData       = useStore(s => s.clusterData);
   const navigateTo        = useStore(s => s.navigateTo);
 
-  const nsPods = (clusterData?.pods || []).filter(
-    p => p.namespace === selectedNamespace?.name
-  );
-  const deployments = (clusterData?.deployments || []).filter(
-    d => d.namespace === selectedNamespace?.name
-  );
-
   if (!selectedNamespace) return null;
+
+  const ns      = selectedNamespace.name;
+  const pods    = (clusterData?.pods        || []).filter(p => p.namespace === ns);
+  const deps    = (clusterData?.deployments  || []).filter(d => d.namespace === ns).map(d => ({ ...d, kind: 'Deployment'  }));
+  const stss    = (clusterData?.statefulSets || []).filter(s => s.namespace === ns).map(s => ({ ...s, kind: 'StatefulSet' }));
+  const dss     = (clusterData?.daemonSets   || []).filter(d => d.namespace === ns).map(d => ({ ...d, kind: 'DaemonSet'   }));
+  const cjs     = (clusterData?.cronJobs     || []).filter(c => c.namespace === ns).map(c => ({ ...c, kind: 'CronJob'     }));
+
+  // Group by kind, ordered
+  const sections = [
+    { kind: 'Deployment',  items: deps  },
+    { kind: 'StatefulSet', items: stss  },
+    { kind: 'DaemonSet',   items: dss   },
+    { kind: 'CronJob',     items: cjs   },
+  ].filter(s => s.items.length > 0);
+
+  const totalWorkloads = sections.reduce((acc, s) => acc + s.items.length, 0);
+
+  // Layout sections along the Z axis with spacing
+  const SECTION_SPACING = 7.0;
+  const totalSections = sections.length;
+  const totalDepth = (totalSections - 1) * SECTION_SPACING;
+
+  function handleClick(workload) {
+    if (workload.kind === 'CronJob') return; // CronJob: no navigation (future)
+    navigateTo('deployment', { selectedDeployment: workload });
+  }
 
   return (
     <group>
+      {/* Namespace title */}
       <Billboard position={[0, 3.5, 0]}>
         <Text fontSize={0.38} color="#b8c8d8" anchorX="center" letterSpacing={0.04}>
           {selectedNamespace.name}
@@ -100,20 +64,38 @@ export default function NamespaceScene() {
       </Billboard>
       <Billboard position={[0, 3.04, 0]}>
         <Text fontSize={0.18} color="#3a4a58" anchorX="center">
-          {deployments.length} deployments
+          {totalWorkloads} workloads
+          {stss.length > 0 ? ` · ${stss.length} sts` : ''}
+          {dss.length > 0  ? ` · ${dss.length} ds`   : ''}
+          {cjs.length > 0  ? ` · ${cjs.length} cj`   : ''}
         </Text>
       </Billboard>
 
-      {deployments.map((dep, i) => (
-        <DepCube
-          key={dep.name}
-          deployment={dep}
-          pods={nsPods}
-          index={i}
-          total={deployments.length}
-          onClick={(d) => navigateTo('deployment', { selectedDeployment: d })}
-        />
-      ))}
+      {/* One group per workload kind */}
+      {sections.map((section, si) => {
+        const zOffset = -((si - (totalSections - 1) / 2) * SECTION_SPACING);
+        return (
+          <group key={section.kind} position={[0, 0, zOffset]}>
+            {totalSections > 1 && (
+              <SectionLabel
+                label={section.kind + 's'}
+                color={SECTION_COLOR[section.kind]}
+                position={[0, 2.0, 0]}
+              />
+            )}
+            {section.items.map((w, i) => (
+              <WorkloadCube
+                key={`${section.kind}-${w.name}`}
+                workload={w}
+                pods={pods}
+                index={i}
+                total={section.items.length}
+                onClick={handleClick}
+              />
+            ))}
+          </group>
+        );
+      })}
     </group>
   );
 }

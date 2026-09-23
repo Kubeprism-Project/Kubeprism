@@ -40,6 +40,10 @@ export const useStore = create((set, get) => {
     openPodLogs:  (pod) => set({ selectedPod: pod }),
     closePodLogs: ()    => set({ selectedPod: null }),
 
+    configsOpen:   false,
+    openConfigs:   ()   => set({ configsOpen: true }),
+    closeConfigs:  ()   => set({ configsOpen: false }),
+
     navigateTo: (level, context = {}) => set({ level, ...context }),
 
     // Switch between the two view modes, resetting navigation
