@@ -37,6 +37,44 @@ const NODES = [
   { name: 'k8s-node-03', pods: 28 },
 ];
 
+const STATEFULSETS = [
+  { name: 'postgres',      ns: 'production', replicas: 3 },
+  { name: 'redis',         ns: 'production', replicas: 3 },
+  { name: 'elasticsearch', ns: 'logging',    replicas: 3 },
+  { name: 'mongodb',       ns: 'staging',    replicas: 2 },
+];
+
+const DAEMONSETS = [
+  { name: 'node-exporter', ns: 'monitoring',  desired: 3 },
+  { name: 'promtail',      ns: 'logging',     desired: 3 },
+  { name: 'cilium-agent',  ns: 'kube-system', desired: 3 },
+];
+
+const CRONJOBS = [
+  { name: 'db-backup',    ns: 'production', schedule: '0 2 * * *',    lastSuccess: true  },
+  { name: 'cache-flush',  ns: 'production', schedule: '*/30 * * * *', lastSuccess: true  },
+  { name: 'log-cleanup',  ns: 'logging',    schedule: '0 0 * * 0',    lastSuccess: false },
+  { name: 'cert-renewal', ns: 'ingress',    schedule: '0 12 * * *',   lastSuccess: true  },
+];
+
+const CONFIGMAPS = [
+  { name: 'api-config',        ns: 'production', keys: ['PORT', 'LOG_LEVEL', 'CACHE_TTL', 'MAX_CONNECTIONS'] },
+  { name: 'worker-config',     ns: 'production', keys: ['QUEUE_SIZE', 'BATCH_SIZE', 'RETRY_LIMIT'] },
+  { name: 'nginx-config',      ns: 'ingress',    keys: ['nginx.conf', 'proxy.conf'] },
+  { name: 'prometheus-config', ns: 'monitoring', keys: ['prometheus.yml', 'alerting.yml'] },
+  { name: 'loki-config',       ns: 'logging',    keys: ['loki.yaml'] },
+  { name: 'staging-config',    ns: 'staging',    keys: ['PORT', 'LOG_LEVEL', 'FEATURE_FLAGS'] },
+];
+
+const SECRETS = [
+  { name: 'db-credentials',   ns: 'production', type: 'Opaque',                          keys: ['username', 'password', 'host'] },
+  { name: 'api-tls',          ns: 'production', type: 'kubernetes.io/tls',                keys: ['tls.crt', 'tls.key'] },
+  { name: 'registry-creds',   ns: 'production', type: 'kubernetes.io/dockerconfigjson',  keys: ['.dockerconfigjson'] },
+  { name: 'monitoring-token', ns: 'monitoring', type: 'Opaque',                          keys: ['token'] },
+  { name: 'ingress-tls',      ns: 'ingress',    type: 'kubernetes.io/tls',                keys: ['tls.crt', 'tls.key'] },
+  { name: 'staging-db',       ns: 'staging',    type: 'Opaque',                          keys: ['username', 'password'] },
+];
+
 // Incident pool — each entry defines a pod and its alert failure mode
 // Two pods are picked per cycle: one goes orange then stays, the other escalates to alert
 const INCIDENT_POOL = [
@@ -235,6 +273,87 @@ export function getDemoData(connectedAt = 0) {
   }
   // calm / recovery: nothing injected → pods absent → auto-recover if needed
 
+  // StatefulSets + their pods
+  const statefulSets = STATEFULSETS.map(sts => {
+    for (let i = 0; i < sts.replicas; i++) {
+      const podName    = `${sts.name}-${i}`;
+      const memPct     = fluctuate(35);
+      const memLimitMi = 1024;
+      pods.push({
+        name: podName, namespace: sts.ns,
+        nodeName: nodeNames[nodeIdx % nodeNames.length],
+        status: 'Running', ready: true, restarts: 0, crashLoop: false,
+        containers: [{ name: sts.name, image: `registry.example.com/${sts.name}:latest` }],
+        createdAt: now, labels: { app: sts.name },
+        ownerKind: 'StatefulSet', ownerName: sts.name,
+        cpuLimit: '500m', memLimit: `${memLimitMi}Mi`,
+        memLimitBytes: memLimitMi * 1024 * 1024,
+        cpuRequest: '100m', memRequest: '256Mi',
+        cpu: `${Math.round(50 + Math.random() * 200)}m`,
+        memory: `${Math.round(memLimitMi * memPct / 100)}Mi`,
+        memPct,
+      });
+      nodeIdx++;
+    }
+    return {
+      name: sts.name, namespace: sts.ns,
+      replicas: sts.replicas, readyReplicas: sts.replicas,
+      health: 'Healthy', createdAt: now,
+      labels: { app: sts.name }, selector: { app: sts.name },
+      serviceName: sts.name,
+      images: [`registry.example.com/${sts.name}:latest`],
+    };
+  });
+
+  // DaemonSets + their pods
+  const daemonSets = DAEMONSETS.map(ds => {
+    for (let i = 0; i < ds.desired; i++) {
+      const suffix     = stableSuffix(`ds/${ds.ns}/${ds.name}/${i}`);
+      const memPct     = fluctuate(20);
+      const memLimitMi = 256;
+      pods.push({
+        name: `${ds.name}-${suffix}`, namespace: ds.ns,
+        nodeName: nodeNames[i % nodeNames.length],
+        status: 'Running', ready: true, restarts: 0, crashLoop: false,
+        containers: [{ name: ds.name, image: `registry.example.com/${ds.name}:latest` }],
+        createdAt: now, labels: { app: ds.name },
+        ownerKind: 'DaemonSet', ownerName: ds.name,
+        cpuLimit: '200m', memLimit: `${memLimitMi}Mi`,
+        memLimitBytes: memLimitMi * 1024 * 1024,
+        cpuRequest: '25m', memRequest: '64Mi',
+        cpu: `${Math.round(5 + Math.random() * 20)}m`,
+        memory: `${Math.round(memLimitMi * memPct / 100)}Mi`,
+        memPct,
+      });
+      nodeIdx++;
+    }
+    return {
+      name: ds.name, namespace: ds.ns,
+      desired: ds.desired, ready: ds.desired,
+      health: 'Healthy', createdAt: now,
+      labels: { app: ds.name }, selector: { app: ds.name },
+      images: [`registry.example.com/${ds.name}:latest`],
+    };
+  });
+
+  const nowTs = Date.now();
+  const cronJobs = CRONJOBS.map(cj => ({
+    name: cj.name, namespace: cj.ns,
+    schedule: cj.schedule, suspended: false, active: false,
+    lastScheduleTime: new Date(nowTs - 3_600_000).toISOString(),
+    lastSuccessTime:  cj.lastSuccess ? new Date(nowTs - 3_600_000).toISOString() : null,
+    createdAt: now, labels: { app: cj.name },
+    images: [`registry.example.com/${cj.name}:latest`],
+  }));
+
+  const configMaps = CONFIGMAPS.map(cm => ({
+    name: cm.name, namespace: cm.ns, keys: cm.keys, createdAt: now,
+  }));
+
+  const secrets = SECRETS.map(s => ({
+    name: s.name, namespace: s.ns, type: s.type, keys: s.keys, createdAt: now,
+  }));
+
   const namespaces = NAMESPACES.map(name => ({
     name,
     status: 'Active',
@@ -258,10 +377,8 @@ export function getDemoData(connectedAt = 0) {
 
   return {
     clusterName: 'demo-cluster',
-    nodes,
-    namespaces,
-    pods,
-    deployments,
+    nodes, namespaces, pods, deployments,
+    statefulSets, daemonSets, cronJobs, configMaps, secrets,
     updatedAt: now,
   };
 }

@@ -143,6 +143,7 @@ export default function HUD() {
   const selectedDeployment = useStore(s => s.selectedDeployment);
   const navigateBack       = useStore(s => s.navigateBack);
   const navigateToLevel    = useStore(s => s.navigateToLevel);
+  const openConfigs        = useStore(s => s.openConfigs);
   const [time, setTime] = useState('');
   const [backHovered, setBackHovered] = useState(false);
 
@@ -259,6 +260,23 @@ export default function HUD() {
             );
           })}
         </div>}
+
+        {/* Configs button — visible at namespace/deployment level */}
+        {(level === 'namespace' || level === 'deployment') && selectedNamespace && (
+          <button
+            onClick={openConfigs}
+            style={{
+              position: 'absolute', bottom: 80, right: 20,
+              background: 'rgba(0,0,16,0.7)', border: '1px solid rgba(34,211,238,0.25)',
+              color: '#22d3ee', borderRadius: 20, padding: '7px 16px',
+              fontSize: 11, letterSpacing: 1, cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+              pointerEvents: 'all',
+            }}
+          >
+            CM / SC
+          </button>
+        )}
 
         {/* Back button */}
         {level !== 'root' && (

@@ -5,6 +5,9 @@ const TYPE_COLOR = {
   NODE:   '#7eb8d4',
   NS:     '#aa88ff',
   DEPLOY: '#7ed4a8',
+  STS:    '#a855f7',
+  DS:     '#22d3ee',
+  CJ:     '#f59e0b',
   POD:    '#d4c07e',
 };
 
@@ -71,6 +74,21 @@ export default function SearchModal() {
         results.push({ type: 'DEPLOY', label: d.name, sub: d.namespace, _dep: d });
       }
     }
+    for (const s of clusterData.statefulSets || []) {
+      if (s.name.toLowerCase().includes(q) || s.namespace.toLowerCase().includes(q)) {
+        results.push({ type: 'STS', label: s.name, sub: s.namespace, _sts: s });
+      }
+    }
+    for (const d of clusterData.daemonSets || []) {
+      if (d.name.toLowerCase().includes(q) || d.namespace.toLowerCase().includes(q)) {
+        results.push({ type: 'DS', label: d.name, sub: d.namespace, _ds: d });
+      }
+    }
+    for (const c of clusterData.cronJobs || []) {
+      if (c.name.toLowerCase().includes(q) || c.namespace.toLowerCase().includes(q)) {
+        results.push({ type: 'CJ', label: c.name, sub: c.namespace, _cj: c });
+      }
+    }
     for (const p of clusterData.pods || []) {
       if (p.name.toLowerCase().includes(q) || p.namespace.toLowerCase().includes(q)) {
         results.push({ type: 'POD', label: p.name, sub: p.namespace, _pod: p });
@@ -103,12 +121,24 @@ export default function SearchModal() {
     } else if (item.type === 'DEPLOY') {
       const ns = (clusterData.namespaces || []).find(n => n.name === item._dep.namespace);
       setViewMode('namespaces');
-      navigateTo('deployment', { selectedNamespace: ns || { name: item._dep.namespace }, selectedDeployment: item._dep });
+      navigateTo('deployment', { selectedNamespace: ns || { name: item._dep.namespace }, selectedDeployment: { ...item._dep, kind: 'Deployment' } });
+    } else if (item.type === 'STS') {
+      const ns = (clusterData.namespaces || []).find(n => n.name === item._sts.namespace);
+      setViewMode('namespaces');
+      navigateTo('deployment', { selectedNamespace: ns || { name: item._sts.namespace }, selectedDeployment: { ...item._sts, kind: 'StatefulSet' } });
+    } else if (item.type === 'DS') {
+      const ns = (clusterData.namespaces || []).find(n => n.name === item._ds.namespace);
+      setViewMode('namespaces');
+      navigateTo('deployment', { selectedNamespace: ns || { name: item._ds.namespace }, selectedDeployment: { ...item._ds, kind: 'DaemonSet' } });
+    } else if (item.type === 'CJ') {
+      const ns = (clusterData.namespaces || []).find(n => n.name === item._cj.namespace);
+      setViewMode('namespaces');
+      navigateTo('namespace', { selectedNamespace: ns || { name: item._cj.namespace } });
     } else if (item.type === 'POD') {
       const ns = (clusterData.namespaces || []).find(n => n.name === item._pod.namespace);
       const dep = (clusterData.deployments || []).find(d => d.name === item._pod.ownerName && d.namespace === item._pod.namespace);
       setViewMode('namespaces');
-      navigateTo('deployment', { selectedNamespace: ns || { name: item._pod.namespace }, selectedDeployment: dep || null });
+      navigateTo('deployment', { selectedNamespace: ns || { name: item._pod.namespace }, selectedDeployment: dep ? { ...dep, kind: 'Deployment' } : null });
       setTimeout(() => openPodLogs(item._pod), 150);
     }
   }

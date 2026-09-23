@@ -14,6 +14,7 @@ let activeClusterName = 'demo'; // demo cluster is the default
 let kc            = new k8s.KubeConfig();
 let coreV1Api     = null;
 let appsV1Api     = null;
+let batchV1Api    = null;
 let customApi     = null;
 let logHelper     = null;
 
@@ -31,10 +32,11 @@ function initClients(kubeConfig, skipTLS = false) {
     console.log('[K8S] TLS verification disabled for this cluster');
   }
 
-  coreV1Api = kc.makeApiClient(k8s.CoreV1Api);
-  appsV1Api = kc.makeApiClient(k8s.AppsV1Api);
-  customApi = kc.makeApiClient(k8s.CustomObjectsApi);
-  logHelper = new k8s.Log(kc);
+  coreV1Api  = kc.makeApiClient(k8s.CoreV1Api);
+  appsV1Api  = kc.makeApiClient(k8s.AppsV1Api);
+  batchV1Api = kc.makeApiClient(k8s.BatchV1Api);
+  customApi  = kc.makeApiClient(k8s.CustomObjectsApi);
+  logHelper  = new k8s.Log(kc);
 }
 
 // Boot: try to load real kubeconfig, fall back to demo cluster
@@ -266,14 +268,85 @@ function formatDeployment(dep) {
   };
 }
 
+function formatStatefulSet(sts) {
+  const replicas      = sts.spec?.replicas ?? 1;
+  const readyReplicas = sts.status?.readyReplicas ?? 0;
+  let health = 'Healthy';
+  if (readyReplicas === 0 && replicas > 0) health = 'Critical';
+  else if (readyReplicas < replicas)        health = 'Degraded';
+  return {
+    name: sts.metadata.name, namespace: sts.metadata.namespace,
+    replicas, readyReplicas, health,
+    serviceName: sts.spec?.serviceName,
+    createdAt: sts.metadata.creationTimestamp,
+    labels: sts.metadata.labels || {},
+    selector: sts.spec?.selector?.matchLabels || {},
+    images: sts.spec?.template?.spec?.containers?.map(c => c.image) || [],
+  };
+}
+
+function formatDaemonSet(ds) {
+  const desired = ds.status?.desiredNumberScheduled ?? 0;
+  const ready   = ds.status?.numberReady ?? 0;
+  let health = 'Healthy';
+  if (ready === 0 && desired > 0) health = 'Critical';
+  else if (ready < desired)        health = 'Degraded';
+  return {
+    name: ds.metadata.name, namespace: ds.metadata.namespace,
+    desired, ready, health,
+    createdAt: ds.metadata.creationTimestamp,
+    labels: ds.metadata.labels || {},
+    selector: ds.spec?.selector?.matchLabels || {},
+    images: ds.spec?.template?.spec?.containers?.map(c => c.image) || [],
+  };
+}
+
+function formatCronJob(cj) {
+  return {
+    name: cj.metadata.name, namespace: cj.metadata.namespace,
+    schedule:         cj.spec?.schedule,
+    suspended:        cj.spec?.suspend ?? false,
+    active:           (cj.status?.active || []).length > 0,
+    lastScheduleTime: cj.status?.lastScheduleTime   || null,
+    lastSuccessTime:  cj.status?.lastSuccessfulTime  || null,
+    createdAt:        cj.metadata.creationTimestamp,
+    labels:           cj.metadata.labels || {},
+    images:           cj.spec?.jobTemplate?.spec?.template?.spec?.containers?.map(c => c.image) || [],
+  };
+}
+
+function formatConfigMap(cm) {
+  return {
+    name: cm.metadata.name, namespace: cm.metadata.namespace,
+    keys: Object.keys(cm.data || {}),
+    createdAt: cm.metadata.creationTimestamp,
+  };
+}
+
+function formatSecret(s) {
+  return {
+    name: s.metadata.name, namespace: s.metadata.namespace,
+    type: s.type,
+    keys: Object.keys(s.data || {}),
+    createdAt: s.metadata.creationTimestamp,
+  };
+}
+
+const SYSTEM_NS = new Set(['kube-system', 'kube-public', 'kube-node-lease']);
+
 export async function getClusterData(connectedAt = 0) {
   if (activeClusterName === 'demo') return getDemoData(connectedAt);
 
-  const [nodes, namespaces, pods, deployments, metrics] = await Promise.all([
+  const [nodes, namespaces, pods, deployments, statefulSets, daemonSets, cronJobs, configMaps, secrets, metrics] = await Promise.all([
     coreV1Api.listNode(),
     coreV1Api.listNamespace(),
     coreV1Api.listPodForAllNamespaces(),
     appsV1Api.listDeploymentForAllNamespaces(),
+    appsV1Api.listStatefulSetForAllNamespaces(),
+    appsV1Api.listDaemonSetForAllNamespaces(),
+    batchV1Api.listCronJobForAllNamespaces(),
+    coreV1Api.listConfigMapForAllNamespaces(),
+    coreV1Api.listSecretForAllNamespaces(),
     getPodMetrics(),
   ]);
   return {
@@ -292,8 +365,17 @@ export async function getClusterData(connectedAt = 0) {
       }
       return f;
     }),
-    deployments: deployments.body.items.map(formatDeployment),
-    updatedAt:   new Date().toISOString(),
+    deployments:  deployments.body.items.map(formatDeployment),
+    statefulSets: statefulSets.body.items.map(formatStatefulSet),
+    daemonSets:   daemonSets.body.items.map(formatDaemonSet),
+    cronJobs:     cronJobs.body.items.map(formatCronJob),
+    configMaps:   configMaps.body.items
+      .filter(cm => !SYSTEM_NS.has(cm.metadata.namespace) && !cm.metadata.name.startsWith('kube-'))
+      .map(formatConfigMap),
+    secrets:      secrets.body.items
+      .filter(s => !SYSTEM_NS.has(s.metadata.namespace) && s.type !== 'kubernetes.io/service-account-token')
+      .map(formatSecret),
+    updatedAt:    new Date().toISOString(),
   };
 }
 
